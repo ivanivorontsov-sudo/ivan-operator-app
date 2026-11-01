@@ -1,0 +1,13 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const A = require('../app/attach');
+const src = (f) => fs.readFileSync(path.join(__dirname, '..', 'app', f), 'utf8');
+test('CONSENT_JS и COUNT_JS — корректный JS', () => { assert.doesNotThrow(() => new Function(A.CONSENT_JS)); assert.doesNotThrow(() => new Function(A.COUNT_JS)); });
+test('порядок прикрепления: буфер, скрепка, input', () => { const s = src('attach.js'); assert.ok(s.includes("['clipboard', 'input', 'paste', 'drop']")); assert.ok(s.indexOf("put('direct')") > s.indexOf('clip-click')); });
+test('согласие ГигаЧата обрабатывается при ожидании превью', () => { assert.ok(/await consent\(w\)/.test(src('attach.js'))); assert.ok(A.CONSENT_JS.includes('соглашени')); });
+test('счётчик неудач снимка сбрасывается в начале задачи', () => { assert.ok(src('agent.js').includes('resetImgFails()')); assert.ok(src('webchat.js').includes('function resetImgFails')); });
+test('новый чат не открывается из-за обрезки истории', () => { const s = src('webchat.js'); assert.ok(!s.includes('messages.length < (st.n || 0)')); assert.ok(s.includes('(st.newChats || 0) < 2')); });
+test('пауза каждые N шагов и повторная пауза', () => { const s = src('agent.js'); assert.ok(s.includes('s.pauseEvery')); assert.ok(s.includes('if (!this.running || this.paused) return false;')); });
+test('токены сохраняются между запусками', () => { const s = src('main.js'); assert.ok(s.includes("'tokens.json'")); assert.ok(s.includes('tokLoad()')); assert.ok(src('renderer.js').includes('прошлые')); });

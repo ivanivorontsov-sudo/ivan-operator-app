@@ -47,7 +47,7 @@ class Agent {
     const out = await recipes.replay(r.actions, (x) => this.execute(x, s, obs, parsed, stats, setClick), (i, x, res) => this.emit({ kind: 'result', text: `рецепт #${i + 1} ${x.type}: ${String(res).slice(0, 200)}` }));
     return out.ok ? `Рецепт «${a.name}» выполнен полностью. Проверь результат и верни done.` : `Рецепт «${a.name}» сорвался на шаге ${out.at + 1}: ${String(out.error).slice(0, 300)}. Продолжи задачу сам.`;
   }
-  pause() { if (!this.running) return false; this.paused = true; this.emit({ kind: 'info', text: 'Пауза: управление у Ивана. Нажмите «Продолжить», когда закончите.' }); return true; }
+  pause() { if (!this.running || this.paused) return false; this.paused = true; this.emit({ kind: 'info', text: 'Пауза: управление у Ивана. Нажмите «Продолжить», когда закончите.' }); return true; }
   unpause() { if (!this.paused) return false; this.paused = false; this._manual = true; this.emit({ kind: 'info', text: 'Продолжаю после ручного управления.' }); return true; }
 
   // 1.2.0: мгновенная отмена (abortable), счётчик токенов, бюджет задачи, общий лимит повторов
@@ -83,7 +83,7 @@ class Agent {
   }
 
   modelCfg(s) {
-    return { provider: s.provider, base: s.base, key: s.key, model: s.model, temperature: s.temperature, maxTokens: s.maxTokens, numCtx: s.numCtx, timeoutSec: s.timeoutSec, webchat: s.webchat, webchatUrl: s.webchatUrl, webchatImages: s.webchatImages, webchatShow: s.webchatShow, webchatKeepChat: s.webchatKeepChat, hangSec: s.hangSec };
+    return { provider: s.provider, base: s.base, key: s.key, model: s.model, temperature: s.temperature, maxTokens: s.maxTokens, numCtx: s.numCtx, timeoutSec: s.timeoutSec, webchat: s.webchat, webchatUrl: s.webchatUrl, webchatImages: s.webchatImages, webchatRotateTurns: s.webchatRotateTurns, webchatNewChat: s.webchatNewChat, webchatMaxChars: s.webchatMaxChars, webchatShow: s.webchatShow, webchatKeepChat: s.webchatKeepChat, hangSec: s.hangSec };
   }
 
   mode(s) {
@@ -176,6 +176,7 @@ class Agent {
 
   async run(taskText, opts = {}) {
     this._openedTaskUrl = false; this._askNudged = false; browser.reset();
+    try { require('./webchat').resetImgFails(); } catch {}
     if (this.running) throw new Error('Уже выполняется задача');
     this.running = true; this.ctl = new AbortController();
     const base = this.getSettings();
@@ -202,7 +203,8 @@ class Agent {
       await platform.sleep(400);
       for (let step = 1; step <= (s.maxSteps || 40); step++) {
         if (this.ctl.signal.aborted) throw Object.assign(new Error('Остановлено'), { stopped: true });
-        while (this.paused && !this.ctl.signal.aborted) await platform.sleep(400);
+        if (Number(s.pauseEvery) > 0 && step > 1 && (step - 1) % Number(s.pauseEvery) === 0 && !this.paused) { this.paused = true; this.emit({ kind: 'paused', step: step - 1, text: `Пауза после ${step - 1} шагов (настройка «Пауза каждые N шагов»). Нажмите «Продолжить», чтобы агент работал дальше.` }); }
+        while (this.paused && !this.ctl.signal.aborted) await platform.sleep(250);
         if (this._manual) { this._manual = false; resultText = 'Иван вручную поработал за компьютером (пауза). Посмотри на новый снимок и продолжи с текущего состояния.'; }
         if (s.maxMinutes && Date.now() - t0run > s.maxMinutes * 60000) throw new Error(`Превышено время на задачу (${s.maxMinutes} мин).`);
         stats.steps = step; this.saveRun({ running: true, task: taskText, started: t0run, step });

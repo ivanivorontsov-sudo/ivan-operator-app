@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="style.css"></head><body>
 <header><div class="logo">🖱️ ИванОператор</div>
 <nav><button data-tab="chat" class="on">Чат</button><button data-tab="settings">Настройки</button><button data-tab="prompt">Инструкция для ИИ</button><button data-tab="local">Локальная модель</button><button data-tab="android">Android</button><button data-tab="remote">Удалённо</button><button data-tab="auto">Автономия</button></nav>
-<div id="status" class="status">Готов</div><div id="tokens" class="status" title="Потрачено токенов в текущей задаче (≈ — оценка, если сервис не сообщает)">токены: 0</div></header>
+<div id="status" class="status">Готов</div><div id="tokens" class="status" title="Токены: эта сессия / прошлые сессии / всего (≈ — оценка, если сервис не сообщает)">токены: 0</div></header>
 
 <section id="tab-chat" class="tab on">
   <div id="log"></div>
@@ -11,7 +11,7 @@
   <div class="composer">
     <div class="row" id="chatPick"><label>ИИ <select id="qWebchat"></select></label> <label class="chk" title="Выключено — только выбранный ИИ: без запасных и без адаптивного переключения"><input type="checkbox" id="qAutoSwitch"> Автовыбор модели и переключение при зависании</label> <button id="qChats" title="Показать чаты этого ИИ">Чаты…</button> <select id="qChatList"><option value="">➕ Новый чат</option></select> <span id="qChatSt" class="hint"></span></div>
     <textarea id="input" placeholder="Что сделать на компьютере? Например: «Открой Firefox, зайди на ya.ru и найди погоду во Владивостоке». Enter — отправить, Shift+Enter — новая строка"></textarea>
-    <div class="btns"><button id="resume" hidden>Продолжить прерванную</button><button id="send" class="primary">Отправить</button><button id="stop" class="danger" disabled>Стоп (Ctrl+Alt+Q)</button><button id="pauseBtn" title="Пауза: вы сами поработаете мышью, потом агент продолжит">Взять управление</button><button id="reportBtn" title="HTML-отчёт с кадрами последней задачи">Отчёт</button><button id="recipeBtn" title="Сохранить действия последней задачи как рецепт">В рецепт</button></div>
+    <div class="btns"><button id="resume" hidden>Продолжить прерванную</button><button id="send" class="primary">Отправить</button><button id="stop" class="danger" disabled>Стоп (Ctrl+Alt+Q)</button><label class="chk" title="Через сколько шагов агент сам встаёт на паузу (0 — не останавливаться)">Пауза каждые <input id="qPauseEvery" type="number" min="0" max="300" style="width:4.5em"> шагов</label><button id="pauseBtn" title="Пауза: вы сами поработаете мышью, потом агент продолжит">Взять управление</button><button id="reportBtn" title="HTML-отчёт с кадрами последней задачи">Отчёт</button><button id="recipeBtn" title="Сохранить действия последней задачи как рецепт">В рецепт</button></div>
   </div>
 </section>
 
@@ -58,7 +58,8 @@
   <label>Максимум повторов на задачу <input id="maxRetriesTask" type="number" min="0" max="100"></label>
   <label class="chk"><input type="checkbox" id="autoFailover"> При зависании переключаться на гостевые чаты (Duck.ai, GLM, ChatGPT) с передачей контекста</label>
   <label>Считать чат зависшим через, с <input id="hangSec" type="number" min="15" max="1800"></label>
-  <label>Новый чат после ходов (длинный чат путает модель) <input id="webchatMaxTurns" type="number" min="2" max="200"></label>
+  <label>Новый чат после ходов (0 — никогда, работать в текущем чате) <input id="webchatRotateTurns" type="number" min="0" max="500"></label>
+  <label class="chk"><input type="checkbox" id="webchatNewChat"> Открывать новый чат для каждой новой задачи (по умолчанию — продолжать в текущем)</label>
   <label>Ограничение времени на задачу, мин <input id="maxMinutes" type="number" min="1" max="1440"></label>
   <label>Разрешённые сайты (пусто = все), через запятую: <input id="allowedDomains" placeholder="*.onlinetestpad.com, duck.ai"></label>
   <label>Запрещённые сайты: <input id="blockedDomains" placeholder="example.com"></label>

@@ -123,6 +123,7 @@ const { attachImage } = require('./attach');
 try { require('./attach').setLearnedFile(path.join(require('electron').app.getPath('userData'), 'attach-learned.json')); } catch {}
 const IMG_FAILS = {}; // id → число неудачных попыток подряд
 function imgFails(id) { return IMG_FAILS[id] || 0; }
+function resetImgFails() { for (const k of Object.keys(IMG_FAILS)) delete IMG_FAILS[k]; }
 // messages — формат агента; в веб-чат шлём системный промпт один раз, дальше — только новое (чат сам хранит контекст).
 async function chat(cfg, messages, signal) {
   const id = cfg.webchat || 'duckai'; const site = SITES[id] || SITES.custom;
@@ -144,12 +145,17 @@ async function chat(cfg, messages, signal) {
   // 1.2.2: не блокируем по статическому флагу — пробуем прикрепить, отказываемся только после 3 реальных неудач подряд
   const useImg = img && cfg.webchatImages !== false && (IMG_FAILS[id] || 0) < 3;
   if (img && !useImg) text += '\n[Снимок экрана не передан (прикрепление не удалось несколько раз). Пользуйтесь списком элементов и описанием.]';
-  let fresh = !st.sys || st.sys !== sys.length || messages.length < (st.n || 0);
+  const firstUser = messages.find((m) => m.role === 'user') || { content: [] };
+  const taskKey = (firstUser.content || []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').slice(0, 300);
+  if (st.task !== taskKey) { st.task = taskKey; st.newChats = 0; }
+  let fresh = !st.sys || st.sys !== sys.length || st.taskSent !== taskKey;
   // длинный чат → модель «плывёт» и путает ответы: новый чат + сжатый контекст
   let carry = '';
-  if (!fresh && ((st.turns || 0) >= (cfg.webchatMaxTurns || 10) || (st.len || 0) > (cfg.webchatMaxChars || 120000))) { fresh = true; carry = condense(messages); }
+  const rot = Number(cfg.webchatRotateTurns) || 0;
+  if (!fresh && (st.newChats || 0) < 1 && ((rot > 0 && (st.turns || 0) >= rot) || (st.len || 0) > (cfg.webchatMaxChars || 400000))) { fresh = true; carry = condense(messages); }
   // новая задача → новый диалог: открываем стартовую страницу сервиса, чтобы старая переписка не путала модель
-  if (fresh && (!cfg.webchatKeepChat || carry)) {
+  if (fresh && (carry || (cfg.webchatNewChat === true && st.openedFor !== taskKey)) && (st.newChats || 0) < 2) {
+    st.newChats = (st.newChats || 0) + 1; st.openedFor = taskKey;
     const base = cfg.webchatUrl || site.url;
     await w.loadURL(base).catch(() => {}); await sleepA(1800, signal); await waitChallenge(w, id, signal);
     await w.webContents.executeJavaScript(CAP);
@@ -158,7 +164,7 @@ async function chat(cfg, messages, signal) {
   if (fresh) { text = (SITE_RULES[id] || '') + sys + (carry ? '\n\n---\nКРАТКИЙ КОНТЕКСТ ПРЕДЫДУЩЕГО ЧАТА (продолжи задачу, не начинай сначала):\n' + carry : '') + '\n\n---\n' + text + '\n\n' + RULES; st.turns = 0; }
   else text += '\n\n' + RULES; // краткие правила каждый ход — против «дрейфа» в длинном чате
   st.turns = (st.turns || 0) + 1;
-  st.sys = sys.length; st.n = messages.length;
+  st.sys = sys.length; st.n = messages.length; st.taskSent = taskKey;
   await w.webContents.executeJavaScript(`window.__pp.mark(${JSON.stringify(text)})`);
   if (useImg) { let sent = 0; for (const im of imgs.slice(site.upload ? -1 : -3)) { const r = await attachImage(w, im.data, { ...site, id }).catch((e) => ({ ok: false, why: e.message })); if (r.ok) sent++; else st.attachFail = r.why; }
     IMG_FAILS[id] = sent ? 0 : (IMG_FAILS[id] || 0) + 1;
@@ -190,4 +196,4 @@ async function chat(cfg, messages, signal) {
   throw new Error('Веб-чат ' + site.label + ': нет ответа за ' + lim / 1000 + ' с');
 }
 function closeAll() { flushAll(); for (const w of Object.values(wins)) if (!w.isDestroyed()) { w._quit = true; w.close(); } }
-module.exports = { imgFails, RULES, condense, SITES, chat, listChats, stopGenerating, flushAll, keepSession, CF_JS, FIND_JS, CHATS_JS, LOGGED_OUT_JS, openLogin, loggedIn, clearSession, closeAll, lastCode, wins, partition: part };
+module.exports = { imgFails, resetImgFails, RULES, condense, SITES, chat, listChats, stopGenerating, flushAll, keepSession, CF_JS, FIND_JS, CHATS_JS, LOGGED_OUT_JS, openLogin, loggedIn, clearSession, closeAll, lastCode, wins, partition: part };

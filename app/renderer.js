@@ -1,7 +1,7 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 let S = null, META = null, busy = false;
-const FIELDS = ['provider', 'base', 'key', 'model', 'profile', 'coords', 'precise', 'useMarks', 'uiMode', 'webchat', 'webchatUrl', 'proxy', 'webchatImages', 'webchatShow', 'grid', 'monitor', 'hideWindow', 'confirmCommands', 'typeViaClipboard', 'maxSteps', 'settleMs', 'contextBudget', 'numCtx', 'temperature', 'timeoutSec', 'maxMinutes', 'taskTokenBudget', 'maxHops', 'maxRetriesTask', 'autoFailover', 'hangSec', 'webchatMaxTurns', 'allowedDomains', 'blockedDomains', 'recordRuns'];
+const FIELDS = ['provider', 'base', 'key', 'model', 'profile', 'coords', 'precise', 'useMarks', 'uiMode', 'webchat', 'webchatUrl', 'proxy', 'webchatImages', 'webchatRotateTurns', 'webchatNewChat', 'pauseEvery', 'webchatShow', 'grid', 'monitor', 'hideWindow', 'confirmCommands', 'typeViaClipboard', 'maxSteps', 'settleMs', 'contextBudget', 'numCtx', 'temperature', 'timeoutSec', 'maxMinutes', 'taskTokenBudget', 'maxHops', 'maxRetriesTask', 'autoFailover', 'hangSec', 'webchatMaxTurns', 'allowedDomains', 'blockedDomains', 'recordRuns'];
 
 document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
@@ -22,6 +22,8 @@ iop.onEvent((e) => {
   if (e.kind === 'user') add('user', e.text);
   else if (e.kind === 'thinking') { setBusy(true, `Шаг ${e.step}: думаю…`); $('liveShot').src = 'data:image/jpeg;base64,' + e.shot; $('liveText').textContent = 'Модель смотрит на экран…'; }
   else if (e.kind === 'step') { add('step', `<b>Шаг ${e.step}</b> (${e.sec} с) ${esc(e.thought)}<br><span class="act">→ ${esc(actText(e.action))}</span>`, false); $('liveText').textContent = 'Выполняю: ' + actText(e.action); }
+  else if (e.kind === 'tokens' && e.all != null) showTokens(e);
+  else if (e.kind === 'paused') { add('info', e.text); setBusy(true, 'Пауза'); }
   else if (e.kind === 'tokens') $('tokens').textContent = 'токены: ' + (e.estimated ? '≈' : '') + e.total.toLocaleString('ru-RU') + (e.limit ? ' / ' + e.limit.toLocaleString('ru-RU') : '');
   else if (e.kind === 'result') $('liveText').textContent = e.text;
   else if (e.kind === 'done' || e.kind === 'ask') { add('assistant', e.text); setBusy(false); }
@@ -30,11 +32,17 @@ iop.onEvent((e) => {
   else if (e.kind === 'confirm') add(e.risks ? 'error' : 'info', (e.risks ? '⚠ Опасная операция, жду подтверждения: ' : 'Жду подтверждения команды: ') + e.text);
 });
 
+const fmtT = (n) => Number(n || 0).toLocaleString('ru-RU');
+function showTokens(t) { $('tokens').textContent = `токены: сессия ${(t.estimated ? '≈' : '') + fmtT(t.session)} · прошлые ${fmtT(t.prev)} · всего ${fmtT(t.all)}`; $('tokens').title = `Текущая задача: ${fmtT(t.total)}${t.limit ? ' из ' + fmtT(t.limit) : ''}\nЭта сессия: ${fmtT(t.session)}\nПрошлые сессии: ${fmtT(t.prev)}\nВсего: ${fmtT(t.all)}`; }
+if (iop.tokensInfo) iop.tokensInfo().then((t) => t && showTokens(t)).catch(() => {});
+async function savePauseEvery() { const v = Math.max(0, Math.min(300, parseInt($('qPauseEvery').value, 10) || 0)); $('qPauseEvery').value = v; if (!S) return; S.pauseEvery = v; await iop.saveSettings({ ...S }); if ($('pauseEvery')) $('pauseEvery').value = v; }
+$('qPauseEvery').addEventListener('change', savePauseEvery);
 async function send() { const t = $('input').value.trim(); if (!t || busy) return; $('input').value = ''; setBusy(true); const r = await iop.send(t); if (r.error) { add('error', r.error); setBusy(false); } }
 $('send').onclick = send; $('stop').onclick = () => iop.stop();
 $('input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 
 function fill() {
+  if ($('qPauseEvery')) $('qPauseEvery').value = S.pauseEvery || 0;
   for (const f of FIELDS) { const el = $(f); if (!el) continue; if (el.type === 'checkbox') el.checked = !!S[f]; else el.value = S[f] ?? ''; }
   $('base').placeholder = (META.presets[S.provider] || {}).base || '';
   $('visionWarn').hidden = (META.presets[S.provider] || {}).vision !== false;

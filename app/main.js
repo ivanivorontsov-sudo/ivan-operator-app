@@ -42,7 +42,7 @@ function applyProxyAll() {
 const DEFAULTS = {
   provider: 'ollama', base: '', key: '', model: 'ivan-operator', profile: 'qwen', coords: 'pixels',
   temperature: 0.1, maxTokens: 700, numCtx: 16384, contextBudget: 14000, timeoutSec: 600,
-  maxSteps: 40, settleMs: 900, precise: true, useMarks: true, uiMode: 'hybrid', grid: false, hideWindow: false, monitor: 0,
+  maxSteps: 40, pauseEvery: 0, webchatNewChat: false, webchatRotateTurns: 0, settleMs: 900, precise: true, useMarks: true, uiMode: 'hybrid', grid: false, hideWindow: false, monitor: 0,
   confirmCommands: false, recordRuns: true, allowedDomains: '', blockedDomains: '', proxy: '', remoteEnabled: false, remoteLan: false, remotePort: 8787, remoteRelay: '', typeViaClipboard: false, jpegQuality: 82, cmdTimeoutSec: 120,
   retries: 4, fallbacks: [], maxMinutes: 60, engineModel: '',
   taskTokenBudget: 0, maxHops: 4, maxRetriesTask: 12, autoFailover: true, hangSec: 90, webchatMaxTurns: 10, webchatKeepChat: false, settingsVersion: 130,
@@ -71,7 +71,12 @@ function saveSettings(s) {
   return settings;
 }
 
-function emit(ev) { if (remote) try { remote.broadcast(ev); } catch {} if (win && !win.isDestroyed()) win.webContents.send('agent-event', ev); if (process.env.IOP_LOG) console.log('[event]', JSON.stringify({ ...ev, shot: ev.shot ? '<img>' : undefined })); }
+const tokFile = () => path.join(dataDir(), 'tokens.json');
+const TOK = { prev: 0, session: 0, sessions: 0, task: 0 };
+function tokLoad() { try { const t = JSON.parse(fs.readFileSync(tokFile(), 'utf8')); TOK.prev = (Number(t.prev) || 0) + (Number(t.session) || 0); TOK.sessions = (Number(t.sessions) || 0) + (t.session ? 1 : 0); } catch {} TOK.session = 0; TOK.task = 0; tokSave(); }
+function tokSave() { try { fs.mkdirSync(dataDir(), { recursive: true }); fs.writeFileSync(tokFile(), JSON.stringify({ prev: TOK.prev, session: TOK.session, sessions: TOK.sessions, saved: new Date().toISOString() })); } catch {} }
+function tokTrack(ev) { if (ev.kind !== 'tokens') return ev; const tt = Number(ev.total) || 0; const d = tt < TOK.task ? tt : tt - TOK.task; TOK.task = Number(ev.total) || 0; TOK.session += d; tokSave(); return { ...ev, session: TOK.session, prev: TOK.prev, all: TOK.prev + TOK.session }; }
+function emit(ev) { if (ev && ev.kind === 'user') TOK.task = 0; ev = tokTrack(ev); if (remote) try { remote.broadcast(ev); } catch {} if (win && !win.isDestroyed()) win.webContents.send('agent-event', ev); if (process.env.IOP_LOG) console.log('[event]', JSON.stringify({ ...ev, shot: ev.shot ? '<img>' : undefined })); }
 
 function createWindow() {
   win = new BrowserWindow({ width: 1100, height: 760, minWidth: 760, minHeight: 520, title: 'ИванОператор', icon: path.join(__dirname, 'icon.png'),
@@ -137,6 +142,7 @@ ipcMain.handle('engine-stop', () => { engine.stop(); return true; });
 ipcMain.handle('android-status', () => android.devices());
 ipcMain.handle('android-setup', async () => { try { return { ok: true, bin: await android.install(require('./engine').download, (p) => win && win.webContents.send('setup-progress', p)) }; } catch (e) { return { ok: false, error: String(e.message || e) }; } });
 ipcMain.handle('stop', () => { agent.stop(); return true; });
+ipcMain.handle('tokens-info', () => ({ session: TOK.session, prev: TOK.prev, all: TOK.prev + TOK.session, sessions: TOK.sessions }));
 ipcMain.handle('pause', () => agent.pause());
 ipcMain.handle('unpause', () => agent.unpause());
 ipcMain.handle('last-report', () => { if (agent.lastReport) shell.openPath(agent.lastReport); return agent.lastReport || null; });
@@ -254,6 +260,7 @@ app.whenReady().then(async () => {
   if (process.env.IOP_SETTINGS) settings = { ...settings, ...JSON.parse(fs.readFileSync(process.env.IOP_SETTINGS, 'utf8')) };
   applyProxyAll();
   if (process.env.IOP_KEY_ENV && process.env[process.env.IOP_KEY_ENV]) settings.key = process.env[process.env.IOP_KEY_ENV];
+  tokLoad();
   history = new History(process.env.IOP_DATA || dataDir());
   engine = new Engine(dataDir(), (t) => emit({ kind: 'info', text: 'Сторож движка: ' + t }));
   android.init(dataDir());

@@ -25,18 +25,29 @@ function writeTmp(info) {
   return f;
 }
 // Подсчёт превью/вложений на странице (blob:/data: картинки, элементы с attach/file/preview в классе)
-const COUNT_JS = `(()=>{const q=[...document.querySelectorAll('img[src^="blob:"],img[src^="data:image"],[class*="ttach" i] img,[class*="preview" i] img,[class*="file" i] img,[class*="upload" i] img,[style*="blob:"]')].filter(e=>e.getClientRects().length);const f=[...document.querySelectorAll('input[type=file]')].reduce((n,i)=>n+((i.files&&i.files.length)||0),0);const busy=!!document.querySelector('[class*="upload" i][class*="progress" i],[class*="loading" i][class*="ttach" i],[role=progressbar]');return {imgs:q.length,files:f,busy}})()`;
+const COUNT_JS = `(()=>{const q=[...document.querySelectorAll('img[src^="blob:"],img[src^="data:image"],[class*="ttach" i] img,[class*="preview" i] img,[class*="file" i] img,[class*="upload" i] img,[style*="blob:"]')].filter(e=>e.getClientRects().length);const f=[...document.querySelectorAll('input[type=file]')].reduce((n,i)=>n+((i.files&&i.files.length)||0),0);const nm=[...document.querySelectorAll('body *')].filter(e=>e.children.length<3&&/\\bscreen[-_ ]?\\d*\\.(png|jpe?g)\\b/i.test(e.textContent||'')&&!e.closest('[contenteditable=true],textarea')&&e.getClientRects().length).length;const busy=!!document.querySelector('[class*="upload" i][class*="progress" i],[class*="loading" i][class*="ttach" i],[role=progressbar]');return {imgs:q.length+(nm?1:0),files:f,busy,srcs:q.map(e=>e.currentSrc||e.src||'').filter(Boolean).slice(-20)}})()`;
+const CONSENT_JS = `(()=>{const vis=e=>e&&e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden';const RT=/соглашени|согласи|ответственност|agreement|terms|consent/i,RB=/^(продолжить|принять|согласен|согласна|загрузить|ок|ok|continue|accept|agree|upload)$/i;const btnIn=d=>[...d.querySelectorAll('button,[role=button]')].filter(vis).find(x=>RB.test((x.innerText||'').trim()));let d=null;for(const c of document.querySelectorAll('input[type=checkbox],[role=checkbox],button,[role=button]')){let a=c;for(let k=0;k<8&&a;k++,a=a.parentElement){if(RT.test(a.innerText||'')&&btnIn(a)&&vis(a)){d=a;break}}if(d)break}if(!d)return '';document.querySelectorAll('[data-iop-cs]').forEach(x=>x.removeAttribute('data-iop-cs'));const cb=[...d.querySelectorAll('input[type=checkbox],[role=checkbox]')].find(c=>!(c.checked||c.getAttribute('aria-checked')==='true'));if(cb){const l=cb.id&&d.querySelector('label[for="'+cb.id+'"]');const t=l&&vis(l)?l:vis(cb)?cb:(cb.closest('label')||cb.parentElement);t.setAttribute('data-iop-cs','cb');return 'cb'}const b=btnIn(d);if(b.disabled||b.getAttribute('aria-disabled')==='true')return 'wait';b.setAttribute('data-iop-cs','ok');return 'ok'})()`;
+async function consent(w) {
+  for (let i = 0; i < 4; i++) {
+    const r = await w.webContents.executeJavaScript(CONSENT_JS).catch(() => '');
+    if (!r) return i > 0;
+    if (r === 'wait') { await sleep(300); continue; }
+    if (!(await trustedClick(w, `[data-iop-cs="${r}"]`))) await w.webContents.executeJavaScript(`(()=>{const e=document.querySelector('[data-iop-cs="${r}"]');if(e)e.click();return 1})()`).catch(() => {});
+    log('consent', true, r === 'cb' ? 'отметил согласие' : 'нажал «Продолжить»'); await sleep(500);
+  }
+  return true;
+}
 async function count(w) { return w.webContents.executeJavaScript(COUNT_JS).catch(() => ({ imgs: 0, files: 0, busy: false })); }
 async function waitPreview(w, before, ms = 12000) {
   const t0 = Date.now(); let last = before;
-  while (Date.now() - t0 < ms) { await sleep(400); last = await count(w); if (last.imgs > before.imgs && !last.busy) { await sleep(600); return true; } }
+  while (Date.now() - t0 < ms) { await sleep(400); await consent(w); last = await count(w); if ((last.imgs > before.imgs || (last.srcs || []).some((x) => !(before.srcs || []).includes(x))) && !last.busy) { await sleep(600); return true; } }
   return false;
 }
 // перехват выбора файла внутри страницы: input[type=file].click()/showPicker() не открывает системный диалог,
 // а помечает input (и подключает к DOM, если он «висит в воздухе») — дальше файл ставится через DOM.setFileInputFiles
 const NO_PICKER_JS = `(()=>{window.__iopBlockPick=1;if(window.__iopNoPick)return 1;window.__iopNoPick=1;const P=HTMLInputElement.prototype;const grab=(el)=>{el.setAttribute('data-iop-file','1');if(!el.isConnected){el.style.display='none';document.body.appendChild(el)}};const oc=P.click;P.click=function(){if(this.type==='file'&&window.__iopBlockPick){grab(this);return}return oc.apply(this,arguments)};if(P.showPicker){const os=P.showPicker;P.showPicker=function(){if(this.type==='file'&&window.__iopBlockPick){grab(this);return}return os.apply(this,arguments)}}if(window.showOpenFilePicker){window.showOpenFilePicker=function(){const i=document.createElement('input');i.type='file';grab(i);return new Promise(()=>{})}}return 1})()`;
 // Кандидаты на «прикрепить»: скрепка, «+», attach/upload, RU/EN по aria/title/классу/тексту/иконке
-const CLIPS_JS = `(()=>{const re=/attach|clip|paperclip|upload|add[-_ ]?file|file|image|photo|plus|скреп|прикреп|загруз|файл|фото|изображ|картин|добав/i,bad=/voice|micro|голос|микроф|send|отправ|search|поиск|new.?chat|нов(ый|ого) чат|login|войти/i;
+const CLIPS_JS = `(()=>{const re=/attach|clip|paperclip|upload|add[-_ ]?file|file|image|photo|plus|скреп|прикреп|загруз|файл|фото|изображ|картин|добав/i,bad=/voice|micro|голос|микроф|send|отправ|search|поиск|new.?chat|нов(ый|ого) чат|login|войти|preview|crop|обрез|remove|удалит|delete/i;
 const sig=b=>[b.getAttribute('aria-label'),b.title,b.getAttribute('data-testid'),typeof b.className==='string'?b.className:'',[...b.querySelectorAll('svg,use,img')].map(x=>(x.getAttribute('class')||'')+(x.getAttribute('href')||'')+(x.getAttribute('xlink:href')||'')+(x.getAttribute('alt')||'')+(x.getAttribute('data-icon')||'')).join(' '),(b.innerText||'').trim()].join(' ');
 let box=document.querySelector('[data-iop-editor]')||[...document.querySelectorAll('textarea,[contenteditable=true],div[role=textbox]')].filter(x=>x.getClientRects().length).pop();for(let i=0;i<4&&box;i++)box=box.parentElement;const all=[...document.querySelectorAll('button,[role=button],label,[aria-haspopup]')].filter(b=>b.getClientRects().length&&!b.disabled);const out=[];
 for(const b of all){const t=(b.innerText||'').trim(),s=sig(b);if(bad.test(s))continue;let sc=0;if(/скреп|paperclip|clip|прикреп|attach/i.test(s))sc=3;else if(t==='+'||/^plus$|plus|добав|add|more|ещё|еще|inputcontrols/i.test(s))sc=2;else if(re.test(s))sc=1;if(b.tagName==='LABEL'&&b.querySelector('input[type=file]'))sc=4;if(sc&&box&&box.contains(b))sc+=0.5;if(sc&&b.getAttribute('aria-haspopup'))sc+=0.3;if(sc&&/widget|gallery/i.test(typeof b.className==='string'?b.className:''))sc-=0.9;if(sc>0)out.push([sc,b])}
@@ -52,6 +63,7 @@ const tmo = (p, ms, d) => Promise.race([p, new Promise((r) => setTimeout(() => r
 async function trustedClick(w, sel) {
   const r = await w.webContents.executeJavaScript(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});if(!e)return null;e.scrollIntoView({block:"center"});const b=e.getBoundingClientRect();return [b.x+b.width/2,b.y+b.height/2]})()`).catch(() => null);
   if (!r) return false; const x = Math.round(r[0]), y = Math.round(r[1]);
+  if (!w.isVisible() && w.showInactive) { w.setOpacity && w.setOpacity(0); w.showInactive(); w._iopShown = true; await sleep(250); }
   for (const type of ['mouseMove', 'mouseDown', 'mouseUp']) w.webContents.sendInputEvent({ type, x, y, button: 'left', clickCount: 1 });
   return true;
 }
@@ -72,8 +84,7 @@ async function viaFileInput(w, file, siteId) {
     };
     await w.webContents.executeJavaScript(NO_PICKER_JS).catch(() => {});
     // 0) уже есть input — сразу
-    if ((await find()).length) { const ok = await put('direct'); if (ok) return 'direct'; }
-    log('file-input:search', false, 'видимого/скрытого input нет — ищу скрепку/«+»');
+    log('file-input:search', true, 'ищу скрепку/«+»');
     // 1) запомненная последовательность сайта — первой
     const known = memory[siteId] || learned()[siteId];
     const clips = await w.webContents.executeJavaScript(CLIPS_JS).catch(() => []);
@@ -89,6 +100,8 @@ async function viaFileInput(w, file, siteId) {
       if (await put(`clip#${i}${menu ? '→' + menu : ''}`)) { remember(siteId, { clip: i, label: clips[i], menu }); return `clip#${i}`; }
       await w.webContents.executeJavaScript(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`).catch(() => {});
     }
+    chooser = null;
+    if ((await find()).length && await put('direct')) return 'direct';
     return false;
   } catch (e) { return log('file-input', false, e.message); }
   finally { w.webContents.executeJavaScript('window.__iopBlockPick=0').catch(() => {}); try { await dbg.sendCommand('Page.setInterceptFileChooserDialog', { enabled: false }); } catch {} dbg.removeListener('message', onMsg); if (attached) try { dbg.detach(); } catch {} }
@@ -109,11 +122,12 @@ async function viaClipboard(w, info) {
   } catch (e) { return log('clipboard', false, e.message); }
 }
 // Главная функция: true — превью появилось; false — картинка не ушла (вызывающий добавит текстовое описание экрана)
+function hideBack(w) { if (w._iopShown) { w._iopShown = false; try { w.hide(); w.setOpacity && w.setOpacity(1); } catch {} } }
 async function attachImage(w, b64, site = {}) {
   const info = inspect(b64);
   if (!log('snapshot', info.ok, info.ok ? `${info.mime} ${info.w}x${info.h} ${info.size} Б` : info.why)) return { ok: false, stage: 'snapshot', why: info.why };
   let file; try { file = writeTmp(info); log('tmpfile', true, `${file} ${info.size} Б`); } catch (e) { log('tmpfile', false, e.message); }
-  const methods = site.attach || ['input', 'paste', 'drop', 'clipboard'];
+  const methods = site.attach || ['clipboard', 'input', 'paste', 'drop'];
   for (const m of methods) {
     const before = await count(w);
     let did = false;
@@ -121,10 +135,12 @@ async function attachImage(w, b64, site = {}) {
     else if (m === 'paste' || m === 'drop') did = await viaDataTransfer(w, info, m);
     else if (m === 'clipboard') did = await viaClipboard(w, info);
     if (!did) continue;
-    const ok = await waitPreview(w, before, site.previewMs || 12000);
+    const ok = await waitPreview(w, before, site.previewMs || 8000);
     log('preview:' + m, ok, ok ? 'превью появилось' : 'превью не появилось');
-    if (ok) return { ok: true, method: m };
+    if (ok) { hideBack(w); return { ok: true, method: m }; }
+    if ((await count(w)).imgs > before.imgs) { hideBack(w); return { ok: true, method: m }; }
   }
+  hideBack(w);
   return { ok: false, stage: 'preview', why: 'ни один способ не дал превью вложения' };
 }
-module.exports = { attachImage, inspect, log: LOG, COUNT_JS, CLIPS_JS, MENU_JS, memory, setLearnedFile, viaFileInput };
+module.exports = { CONSENT_JS, attachImage, inspect, log: LOG, COUNT_JS, CLIPS_JS, MENU_JS, memory, setLearnedFile, viaFileInput };
