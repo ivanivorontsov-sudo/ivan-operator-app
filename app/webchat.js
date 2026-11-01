@@ -127,6 +127,7 @@ function condense(messages) {
 function lastCode(t) { const m = [...String(t).matchAll(/```[a-z]*\n([\s\S]*?)```/gi)]; return m.length ? m[m.length - 1][1].trim() : String(t).trim(); }
 const { attachImage } = require('./attach');
 try { require('./attach').setLearnedFile(path.join(require('electron').app.getPath('userData'), 'attach-learned.json')); } catch {}
+const say = (kind, text) => { try { if (module.exports.onLog) module.exports.onLog(kind, text); } catch {} };
 const IMG_FAILS = {}; // id → число неудачных попыток подряд
 function imgFails(id) { return IMG_FAILS[id] || 0; }
 function resetImgFails() { for (const k of Object.keys(IMG_FAILS)) delete IMG_FAILS[k]; }
@@ -150,8 +151,9 @@ async function chat(cfg, messages, signal) {
   let text = last.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
   const imgs = last.content.filter((c) => c.type === 'image').slice(-3); const img = imgs[imgs.length - 1];
   // 1.2.2: не блокируем по статическому флагу — пробуем прикрепить, отказываемся только после 3 реальных неудач подряд
-  const useImg = img && cfg.webchatImages !== false && (IMG_FAILS[id] || 0) < 3;
-  if (img && !useImg) text += '\n[Снимок экрана не передан (прикрепление не удалось несколько раз). Пользуйтесь списком элементов и описанием.]';
+  const useImg = !!img && cfg.webchatImages !== false && site.images !== false;
+  if (!img) say('info', `Снимок в ${site.label} не отправлен: в этом шаге нет снимка экрана (режим «только код» или снимок не удался).`);
+  else if (!useImg) { say('warn', `Снимок в ${site.label} не отправлен: ${cfg.webchatImages === false ? 'выключено «Отправлять снимки картинкой» в настройках' : 'этот чат не принимает картинки'}.`); text += '\n[Снимок экрана не передан. Пользуйтесь списком элементов и описанием.]'; }
   const firstUser = messages.find((m) => m.role === 'user') || { content: [] };
   const taskKey = (firstUser.content || []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').slice(0, 300);
   if (st.task !== taskKey) { st.task = taskKey; st.newChats = 0; }
@@ -175,6 +177,7 @@ async function chat(cfg, messages, signal) {
   await w.webContents.executeJavaScript(`window.__pp.mark(${JSON.stringify(text)})`);
   if (useImg) { let sent = 0; for (const im of imgs.slice(site.upload ? -1 : -3)) { const r = await attachImage(w, im.data, { ...site, id }).catch((e) => ({ ok: false, why: e.message })); if (r.ok) sent++; else st.attachFail = r.why; }
     IMG_FAILS[id] = sent ? 0 : (IMG_FAILS[id] || 0) + 1;
+    say(sent ? 'info' : 'warn', sent ? `Снимок прикреплён в ${site.label}.` : `Снимок в ${site.label} прикрепить не удалось: ${st.attachFail || 'ошибка'}. Отправляю текст.`);
     if (!sent) { text += '\n[Снимок экрана не удалось прикрепить (' + (st.attachFail || 'ошибка') + '). Опирайся на список элементов и текстовое описание экрана выше.]'; await w.webContents.executeJavaScript(`window.__pp.mark(${JSON.stringify(text)})`).catch(() => {}); } }
   // Нативный ввод (как с клавиатуры) — работает на React/Quill/ProseMirror; запасной — JS-заполнение.
   let how = 'noinput';

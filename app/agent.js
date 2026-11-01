@@ -89,8 +89,8 @@ class Agent {
   mode(s) {
     const m = s.visionOnly ? 'vision' : (s.uiMode || 'hybrid');
     // веб-чат без загрузки картинок (Duck.ai, HuggingChat, Perplexity…) не видит снимков → автоматически быстрый режим «только код»
-    if (m !== 'dom' && s.provider === 'webchat' && !s.webchatImages) { let site = null; try { site = require('./webchat').SITES[s.webchat]; } catch {}
-      if (site && require('./webchat').imgFails(s.webchat) >= 3) { if (!this._noImgWarned) { this._noImgWarned = true; this.emit({ kind: 'warn', text: `«${site.label}» не принял снимок 3 раза подряд — режим «${m === 'vision' ? 'только зрение' : 'гибрид'}» невозможен, работаю в быстром режиме «только код». Для зрения выберите ChatGPT, Алису, Gemini или Grok.` }); } return 'dom'; } }
+    if (m !== 'dom' && s.provider === 'webchat') { let site = null; try { site = require('./webchat').SITES[s.webchat]; } catch {}
+      if (site && (s.webchatImages === false || site.images === false)) { if (!this._noImgWarned) { this._noImgWarned = true; this.emit({ kind: 'warn', text: `«${site.label}»: ${s.webchatImages === false ? 'в настройках выключено «Отправлять снимки картинкой»' : 'этот чат не принимает картинки'} — режим «${m === 'vision' ? 'только зрение' : 'гибрид'}» невозможен, работаю в быстром режиме «только код». Для зрения выберите ChatGPT, Алису, Gemini или Grok.` }); } return 'dom'; } }
     return m;
   }
   // Быстрый режим «только код»: снимков нет вообще — модель получает компактное дерево элементов
