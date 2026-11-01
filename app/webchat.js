@@ -22,6 +22,10 @@ const SITES = {
   custom: { label: 'Свой адрес', url: '', images: true, guest: false },
 };
 const wins = {}; const state = {};
+const CHAT_PATH = /\/(a\/chat\/s|c|chat|search|thread|conversation|app|s)\/[\w-]{6,}/;
+const lastFile = () => { try { return path.join(require('electron').app.getPath('userData'), 'webchat-last.json'); } catch { return null; } };
+function lastChats() { try { return JSON.parse(fs.readFileSync(lastFile(), 'utf8')); } catch { return {}; } }
+function rememberChat(id, u) { try { if (!u || !CHAT_PATH.test(new URL(u).pathname)) return; const l = lastChats(); if (l[id] === u) return; l[id] = u; fs.writeFileSync(lastFile(), JSON.stringify(l)); } catch {} }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const { sleepA } = require('./guard');
 // Cloudflare «Just a moment…» / Turnstile: страницу НЕЛЬЗЯ перезагружать и чистить кэш — проверка сбросится (причина поломки Perplexity в 1.1.4)
@@ -69,6 +73,8 @@ function win(id, url, show) {
     // Всплывающие окна входа (Google/Apple OAuth, капча) — разрешаем в том же разделе, чтобы куки и капча работали
     w.webContents.setWindowOpenHandler(() => ({ action: 'allow', overrideBrowserWindowOptions: { parent: w, width: 520, height: 720, webPreferences: { partition: part(id), contextIsolation: true, nodeIntegration: false, sandbox: true } } }));
     w._r403 = 0; keepSession(w.webContents.session);
+    w.webContents.on('did-navigate', (_e, u) => rememberChat(id, u));
+    w.webContents.on('did-navigate-in-page', (_e, u) => rememberChat(id, u));
     w.webContents.on('did-navigate', async (_e, u, code) => {
       if (code !== 403) return;
       if (await w.webContents.executeJavaScript(CF_JS).catch(() => false)) return; // проверка Cloudflare — ждём, не трогаем
@@ -76,7 +82,7 @@ function win(id, url, show) {
       w.webContents.executeJavaScript(`(()=>{if(document.getElementById('iop403'))return;const d=document.createElement('div');d.id='iop403';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#fff3cd;color:#333;padding:10px;font:14px sans-serif';d.innerHTML='ИванОператор: сайт ответил 403 (запрос заблокирован). Нажмите <b>Ctrl+R</b> или <a href="#" id="iop403r">Повторить</a>. Если не помогает — смените сеть/VPN или выберите другой чат.';document.body.prepend(d);document.getElementById('iop403r').onclick=(e)=>{e.preventDefault();location.reload();};})()`).catch(() => {});
     });
     w.webContents.on('before-input-event', (_e, i) => { if (i.type === 'keyDown' && (i.control || i.meta) && i.key.toLowerCase() === 'r') w.webContents.reload(); });
-    w.loadURL(url || SITES[id].url);
+    w.loadURL(url || lastChats()[id] || SITES[id].url);
   } else if (show) w.show();
   return w;
 }
@@ -127,8 +133,9 @@ function resetImgFails() { for (const k of Object.keys(IMG_FAILS)) delete IMG_FA
 // messages — формат агента; в веб-чат шлём системный промпт один раз, дальше — только новое (чат сам хранит контекст).
 async function chat(cfg, messages, signal) {
   const id = cfg.webchat || 'duckai'; const site = SITES[id] || SITES.custom;
-  const w = win(id, cfg.webchatUrl || site.url, cfg.webchatShow);
+  const w = win(id, cfg.webchatUrl || '', cfg.webchatShow);
   const st = state[id] = state[id] || {};
+  if (cfg.webchatUrl && st.pickedUrl !== cfg.webchatUrl) { st.pickedUrl = cfg.webchatUrl; if (w.webContents.getURL() !== cfg.webchatUrl) { await w.loadURL(cfg.webchatUrl).catch(() => {}); st.sys = 0; } }
   if (w.webContents.isLoading()) await Promise.race([new Promise((r) => w.webContents.once('did-finish-load', r)), sleepA(30000, signal)]);
   await sleepA(800, signal);
   await waitChallenge(w, id, signal);
@@ -152,11 +159,11 @@ async function chat(cfg, messages, signal) {
   // длинный чат → модель «плывёт» и путает ответы: новый чат + сжатый контекст
   let carry = '';
   const rot = Number(cfg.webchatRotateTurns) || 0;
-  if (!fresh && (st.newChats || 0) < 1 && ((rot > 0 && (st.turns || 0) >= rot) || (st.len || 0) > (cfg.webchatMaxChars || 400000))) { fresh = true; carry = condense(messages); }
+  if (!fresh && (st.newChats || 0) < 1 && rot > 0 && ((st.turns || 0) >= rot || (st.len || 0) > (cfg.webchatMaxChars || 400000))) { fresh = true; carry = condense(messages); }
   // новая задача → новый диалог: открываем стартовую страницу сервиса, чтобы старая переписка не путала модель
   if (fresh && (carry || (cfg.webchatNewChat === true && st.openedFor !== taskKey)) && (st.newChats || 0) < 2) {
     st.newChats = (st.newChats || 0) + 1; st.openedFor = taskKey;
-    const base = cfg.webchatUrl || site.url;
+    const base = site.url;
     await w.loadURL(base).catch(() => {}); await sleepA(1800, signal); await waitChallenge(w, id, signal);
     await w.webContents.executeJavaScript(CAP);
     for (let i = 0; i < 2; i++) { const c = await w.webContents.executeJavaScript(`(()=>{const b=[...document.querySelectorAll('button,[role=button]')].find(x=>x.getClientRects().length&&/^(i agree|agree|accept|accept all|got it|start|start chatting|принять|понятно|начать|stay logged out|остаться без входа)$/i.test((x.innerText||'').trim()));if(b){b.click();return 1}return 0})()`).catch(() => 0); if (!c) break; await sleep(1200); }

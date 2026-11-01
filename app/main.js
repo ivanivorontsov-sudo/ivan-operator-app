@@ -221,7 +221,7 @@ ipcMain.handle('webchat-sites', () => webchat.SITES);
 ipcMain.handle('webchat-login', (_e, id, url) => webchat.openLogin(id, url));
 ipcMain.handle('webchat-status', (_e, id) => webchat.loggedIn(id));
 ipcMain.handle('webchat-chats', async (_e, id) => { try { const r = await webchat.listChats(id, true); return { ok: true, chats: r.chats, loggedIn: r.loggedIn }; } catch (e) { return { ok: false, error: e.message }; } });
-ipcMain.handle('webchat-pick', (_e, id, url) => { saveSettings({ ...settings, provider: 'webchat', webchat: id, webchatUrl: url || '', webchatKeepChat: !!url }); return settings; });
+ipcMain.handle('webchat-pick', (_e, id, url) => { saveSettings({ ...settings, provider: 'webchat', webchat: id, webchatUrl: url || '', webchatKeepChat: true }); try { const w = webchat.wins[id]; if (url && w && !w.isDestroyed() && w.webContents.getURL() !== url) w.loadURL(url); } catch {} return settings; });
 ipcMain.handle('webchat-clear', (_e, id) => webchat.clearSession(id));
 ipcMain.handle('list-models', (_e, cfg) => providers.listModels(cfg));
 ipcMain.handle('guess-profile', (_e, p, m) => sizing.guessProfile(p, m));
