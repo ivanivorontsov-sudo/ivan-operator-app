@@ -1,0 +1,106 @@
+{
+  "name": "ivanoperator",
+  "version": "1.2.2",
+  "description": "ИванОператор — ИИ управляет компьютером по скриншотам",
+  "main": "app/main.js",
+  "author": {
+    "name": "Воронцов Иван Игоревич",
+    "email": "ivan@example.com"
+  },
+  "license": "MIT",
+  "productName": "ИванОператор",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist:linux": "electron-builder --linux AppImage",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "ru.vorontsov.ivanoperator",
+    "productName": "ИванОператор",
+    "executableName": "IvanOperator",
+    "copyright": "© 2026 Воронцов Иван Игоревич",
+    "files": [
+      "app/**",
+      "helpers/**",
+      "relay/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "helpers/**"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "artifactName": "IvanOperator-${version}-${arch}.${ext}",
+      "maintainer": "Воронцов Иван Игоревич <ivan@example.com>",
+      "executableName": "ivan-operator"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "language": "1049",
+      "shortcutName": "ИванОператор",
+      "artifactName": "IvanOperator-Setup-${version}.exe"
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libsecret-1-0",
+        "libasound2 | libasound2t64"
+      ],
+      "artifactName": "ivan-operator_${version}_amd64.deb",
+      "recommends": [
+        "ydotool",
+        "python3-gi",
+        "gir1.2-glib-2.0",
+        "xdg-desktop-portal",
+        "xdg-desktop-portal-gnome | xdg-desktop-portal-kde | xdg-desktop-portal-wlr",
+        "gnome-screenshot",
+        "wl-clipboard",
+        "xdotool"
+      ],
+      "afterInstall": "build/deb/after-install.sh"
+    }
+  },
+  "dependencies": {
+    "jsonrepair": "^3.15.0",
+    "playwright-core": "^1.64.1",
+    "selfsigned": "^2.4.1",
+    "ws": "^8.22.0",
+    "js-yaml": "^4.3.2"
+  },
+  "homepage": "https://github.com/ivanivorontsov-sudo/ivan-operator"
+}

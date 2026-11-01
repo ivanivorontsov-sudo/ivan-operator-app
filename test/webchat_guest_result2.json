@@ -1,0 +1,82 @@
+[
+ {
+  "k": "mock_first",
+  "v": {
+   "text": "{\"say\":\"mock\",\"images\":1,\"len\":68,\"hasSys\":true}",
+   "raw": "```\n{\"say\":\"mock\",\"images\":1,\"len\":68,\"hasSys\":true}\n```",
+   "method": "selector:newcode"
+  }
+ },
+ {
+  "k": "mock_second",
+  "v": {
+   "text": "{\"say\":\"mock\",\"images\":1,\"len\":5,\"hasSys\":false}",
+   "raw": "```\n{\"say\":\"mock\",\"images\":1,\"len\":5,\"hasSys\":false}\n```",
+   "method": "selector:newcode"
+  }
+ },
+ {
+  "k": "login_flow",
+  "v": {
+   "ok": true,
+   "partition": "persist:webchat-mock"
+  }
+ },
+ {
+  "k": "status",
+  "v": {
+   "open": true,
+   "editor": true,
+   "url": "http://127.0.0.1:8765/mockchat.html",
+   "title": "MockChat"
+  }
+ },
+ {
+  "k": "cleared",
+  "v": true
+ },
+ {
+  "k": "code_extract",
+  "v": "{\"b\":2}"
+ },
+ {
+  "k": "guest_gemini",
+  "v": {
+   "text": "Google Terms Opens in a new window  and the  Google Privacy Policy Opens in a new window  apply. Gemini is AI and can make mistakes.",
+   "raw": "Google Terms Opens in a new window  and the  Google Privacy Policy Opens in a new window  apply. Gemini is AI and can make mistakes.",
+   "method": "heuristic"
+  }
+ },
+ {
+  "k": "guest_duckai",
+  "v": {
+   "text": "{\"ok\":1}",
+   "raw": "```\n{\"ok\":1}\n```",
+   "method": "selector:newcode"
+  }
+ },
+ {
+  "k": "guest_glm",
+  "v": {
+   "text": "{\"ok\":1}",
+   "raw": "{\"ok\":1}",
+   "method": "selector:glm"
+  }
+ },
+ {
+  "k": "guest_alice",
+  "v": {
+   "text": "{\"ok\":1}",
+   "raw": "```\n{\"ok\":1}\n```",
+   "method": "selector:newcode"
+  }
+ },
+ {
+  "k": "guest_qwen",
+  "v": {
+   "text": "Confirm your age to continue\n\nWhat year were you born?\n\n2000",
+   "raw": "Confirm your age to continue\n\nWhat year were you born?\n\n2000",
+   "method": "heuristic"
+  }
+ }
+]

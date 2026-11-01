@@ -1,0 +1,25 @@
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:#14161c;color:#e6e8ee;height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:16px;padding:8px 14px;background:#1c1f28;border-bottom:1px solid #2a2e3a}
+.logo{font-weight:700;font-size:16px}nav button{background:none;border:none;color:#aab;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:14px}
+nav button.on{background:#2d3345;color:#fff}.status{margin-left:auto;color:#8fd18f;font-size:13px}.status.busy{color:#f5c26b}
+.tab{display:none;flex:1;min-height:0}.tab.on{display:flex;flex-direction:column}
+#log{flex:1;overflow:auto;padding:14px}.msg{max-width:860px;margin:6px 0;padding:9px 12px;border-radius:10px;white-space:pre-wrap;word-wrap:break-word}
+.msg.user{background:#24406b;margin-left:auto}.msg.assistant{background:#263027}.msg.step{background:#1d2130;color:#c5c9d6;font-size:13px}.msg.error{background:#4a2326}.msg.info{background:#2a2a1d;font-size:13px}
+.msg .act{color:#7fb2ff;font-family:monospace}#live{display:none;gap:10px;padding:6px 14px;border-top:1px solid #2a2e3a;align-items:center}#live.on{display:flex}#liveShot{height:90px;border:1px solid #333}
+.composer{display:flex;gap:8px;padding:10px 14px;border-top:1px solid #2a2e3a}textarea#input{flex:1;height:70px;resize:vertical;background:#1c1f28;color:#fff;border:1px solid #333a4a;border-radius:8px;padding:8px;font:inherit}
+.btns{display:flex;flex-direction:column;gap:6px}button{background:#2d3345;color:#fff;border:1px solid #3b4258;border-radius:7px;padding:7px 14px;cursor:pointer;font:inherit}button:hover{background:#384060}
+button.primary{background:#2f6fe4;border-color:#2f6fe4}button.danger{background:#b23a3a;border-color:#b23a3a}button:disabled{opacity:.45;cursor:default}
+.form{padding:16px 22px;overflow:auto;max-width:760px}.form.wide{max-width:none;display:flex;flex-direction:column;flex:1;min-height:0}.form label{display:flex;justify-content:space-between;gap:12px;margin:7px 0;align-items:center}
+.form label.chk{justify-content:flex-start}.form input:not([type=checkbox]),.form select{width:380px;background:#1c1f28;color:#fff;border:1px solid #333a4a;border-radius:6px;padding:6px}
+.row{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}#promptText{flex:1;min-height:260px;background:#101217;color:#dfe;border:1px solid #333a4a;border-radius:8px;padding:10px;font:13px/1.5 monospace}
+#envPreview{max-height:240px;overflow:auto;background:#101217;padding:10px;border-radius:8px;white-space:pre-wrap;font-size:12px}.warn{color:#f5c26b}.hint{color:#99a;font-size:13px}h3{margin:18px 0 6px;color:#9fc0ff}code{background:#232838;padding:1px 4px;border-radius:4px}
+#fallbacksText{width:100%;background:#1c1f28;color:#fff;border:1px solid #333a4a;border-radius:6px;font-family:monospace}progress{width:100%;height:14px}#adbState{background:#1c1f28;padding:8px;border-radius:6px;min-height:40px}
+/* 1.2.0 компактное окно во время работы */
+body.compact #chatPick, body.compact #input, body.compact #log, body.compact aside, body.compact #settings { display: none !important; }
+body.compact .btns button:not(#stop) { display: none; }
+#tokens { margin-left: 8px; opacity: .8; }
+/* 1.3.0: поле ввода — на всю ширину, многострочное; выбор ИИ — отдельной строкой сверху */
+.composer{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"pick pick" "input btns";gap:8px 10px;align-items:stretch}
+.composer #chatPick{grid-area:pick;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.composer textarea#input{grid-area:input;width:100%;box-sizing:border-box;min-height:96px;height:auto;max-height:40vh;resize:vertical;font-size:14px;line-height:1.4}
+.composer .btns{grid-area:btns;min-width:170px}

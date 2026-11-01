@@ -1,0 +1,94 @@
+[
+ {
+  "k": "mock_first",
+  "v": {
+   "text": "{\"say\":\"mock\",\"images\":1,\"len\":68,\"hasSys\":true}",
+   "raw": "Думаю…\n\n```\n{\"say\":\"mock\",\"images\":1,\"len\":68,\"hasSys\":true}\n```",
+   "method": "selector:other"
+  }
+ },
+ {
+  "k": "mock_second",
+  "v": {
+   "text": "{\"say\":\"mock\",\"images\":1,\"len\":5,\"hasSys\":false}",
+   "raw": "Думаю…\n\n```\n{\"say\":\"mock\",\"images\":1,\"len\":5,\"hasSys\":false}\n```",
+   "method": "selector:other"
+  }
+ },
+ {
+  "k": "login_flow",
+  "v": {
+   "ok": true,
+   "partition": "persist:webchat-mock"
+  }
+ },
+ {
+  "k": "status",
+  "v": {
+   "open": true,
+   "editor": true,
+   "url": "http://127.0.0.1:8765/mockchat.html",
+   "title": "MockChat"
+  }
+ },
+ {
+  "k": "cleared",
+  "v": true
+ },
+ {
+  "k": "code_extract",
+  "v": "{\"b\":2}"
+ },
+ {
+  "k": "guest_grok",
+  "v": {
+   "text": "Отвечай строго одним блоком",
+   "raw": "You\n\nТы тестовый помощник.\n\n---\nОтветь только блоком ```json {\"ok\":1} ```\n\nОтвечай строго одним блоком ```json ... ``` в конце.",
+   "method": "selector:grok"
+  }
+ },
+ {
+  "k": "guest_gemini",
+  "v": {
+   "text": "Google Terms Opens in a new window  and the  Google Privacy Policy Opens in a new window  apply. Gemini is AI and can make mistakes.",
+   "raw": "Google Terms Opens in a new window  and the  Google Privacy Policy Opens in a new window  apply. Gemini is AI and can make mistakes.",
+   "method": "heuristic"
+  }
+ },
+ {
+  "k": "guest_perplexity_err",
+  "v": "Веб-чат Perplexity: нет поля ввода — войдите в окне «Войти в веб-чат»."
+ },
+ {
+  "k": "guest_glm",
+  "v": {
+   "text": "{\"ok\":1}",
+   "raw": "{\"ok\":1}",
+   "method": "selector:glm"
+  }
+ },
+ {
+  "k": "guest_kimi",
+  "v": {
+   "text": "WeChat QR login\n\nPhone number\n\nI agree to Terms of Service and Privacy Policy\n\nNeed help?   . If you use Log in with Google, visit  kimi.ai",
+   "raw": "WeChat QR login\n\nPhone number\n\nI agree to Terms of Service and Privacy Policy\n\nNeed help?   . If you use Log in with Google, visit  kimi.ai",
+   "method": "heuristic"
+  }
+ },
+ {
+  "k": "guest_qwen_err",
+  "v": "Веб-чат Qwen Chat: нет ответа за 90 с"
+ },
+ {
+  "k": "guest_alice",
+  "v": {
+   "text": "{\"ok\":1}",
+   "raw": "```\n{\"ok\":1}\n```",
+   "method": "selector:newcode"
+  }
+ },
+ {
+  "k": "guest_huggingchat_err",
+  "v": "Веб-чат HuggingChat: нет поля ввода — войдите в окне «Войти в веб-чат»."
+ }
+]

@@ -1,0 +1,9 @@
+<!doctype html><meta charset=utf-8><title>MockChat</title><body><div id=log></div>
+<div id=login style="display:none"><input id=u placeholder=Логин><input id=p type=password><button id=lb>Войти</button></div>
+<form id=f><textarea id=t></textarea><button type=submit aria-label="Отправить">Отправить</button></form><div id=att></div>
+<script>let imgs=0;
+document.getElementById('t').addEventListener('paste',e=>{for(const i of e.clipboardData.items)if(i.type.startsWith('image/')){imgs++;att.textContent='image attached '+imgs}});
+f.onsubmit=e=>{e.preventDefault();const q=t.value;t.value='';const u=document.createElement('div');u.className='user';u.textContent=q;log.append(u);
+setTimeout(()=>{const a=document.createElement('div');a.className='markdown';const n=(q.match(/шаг/gi)||[]).length;
+a.innerHTML='<p>Думаю…</p><pre>{"say":"mock","images":'+imgs+',"len":'+q.length+',"hasSys":'+(q.includes('---'))+'}</pre>';log.append(a)},1200)}
+</script>

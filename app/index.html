@@ -1,0 +1,138 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>ИванОператор</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><div class="logo">🖱️ ИванОператор</div>
+<nav><button data-tab="chat" class="on">Чат</button><button data-tab="settings">Настройки</button><button data-tab="prompt">Инструкция для ИИ</button><button data-tab="local">Локальная модель</button><button data-tab="android">Android</button><button data-tab="remote">Удалённо</button><button data-tab="auto">Автономия</button></nav>
+<div id="status" class="status">Готов</div><div id="tokens" class="status" title="Потрачено токенов в текущей задаче (≈ — оценка, если сервис не сообщает)">токены: 0</div></header>
+
+<section id="tab-chat" class="tab on">
+  <div id="log"></div>
+  <div id="live"><img id="liveShot" alt=""><div id="liveText"></div></div>
+  <div class="composer">
+    <div class="row" id="chatPick"><label>ИИ <select id="qWebchat"></select></label> <label class="chk" title="Выключено — только выбранный ИИ: без запасных и без адаптивного переключения"><input type="checkbox" id="qAutoSwitch"> Автовыбор модели и переключение при зависании</label> <button id="qChats" title="Показать чаты этого ИИ">Чаты…</button> <select id="qChatList"><option value="">➕ Новый чат</option></select> <span id="qChatSt" class="hint"></span></div>
+    <textarea id="input" placeholder="Что сделать на компьютере? Например: «Открой Firefox, зайди на ya.ru и найди погоду во Владивостоке». Enter — отправить, Shift+Enter — новая строка"></textarea>
+    <div class="btns"><button id="resume" hidden>Продолжить прерванную</button><button id="send" class="primary">Отправить</button><button id="stop" class="danger" disabled>Стоп (Ctrl+Alt+Q)</button><button id="pauseBtn" title="Пауза: вы сами поработаете мышью, потом агент продолжит">Взять управление</button><button id="reportBtn" title="HTML-отчёт с кадрами последней задачи">Отчёт</button><button id="recipeBtn" title="Сохранить действия последней задачи как рецепт">В рецепт</button></div>
+  </div>
+</section>
+
+<section id="tab-settings" class="tab"><div class="form">
+  <h3>Модель</h3>
+  <label>Провайдер <select id="provider"></select></label>
+  <label>Адрес API <input id="base" placeholder="по умолчанию для провайдера"></label>
+  <label>Ключ API <input id="key" type="password" placeholder="хранится только на этом компьютере (зашифрован)"></label>
+  <label>Модель <input id="model" list="modelList"><datalist id="modelList"></datalist></label>
+  <div class="row"><button id="loadModels">Список моделей</button><button id="test">Проверить связь</button><span id="testRes"></span></div>
+  <p id="visionWarn" class="warn" hidden>Эта модель не видит изображения: она будет работать только по списку элементов интерфейса. Для управления по скриншотам выберите модель со зрением.</p>
+  <h3>Точность</h3>
+  <label>Размер снимка для модели <select id="profile"></select></label>
+  <label>Система координат <select id="coords"><option value="pixels">Пиксели снимка (Qwen2.5-VL, Claude, GPT)</option><option value="norm1000">0..1000 (Qwen3-VL, UI-TARS, Gemini)</option></select></label>
+  <label class="chk"><input type="checkbox" id="precise"> Точный режим: перед кликом проверять точку на увеличенном фрагменте (+1 запрос)</label>
+  <fieldset id="webchatBox"><legend>Встроенный браузер (веб-чат как «мозг»)</legend>
+   <label>Сервис <select id="webchat"></select></label>
+   <label>Свой адрес <input id="webchatUrl" placeholder="https://…"></label>
+   <label>Прокси / VPN <input id="proxy" placeholder="напр. http://vnodef.podso.su:24789 (PodsoVPN, Германия, бесплатно) или socks5://127.0.0.1:1080"></label>
+   <small>Расширения-VPN (например, PodsoVPN) внутри программы не работают: в Electron нет chrome.proxy. Укажите здесь адрес прокси (SOCKS5/HTTP) или запустите VPN-клиент для всей системы.</small>
+   <label><input type="checkbox" id="webchatImages"> Отправлять снимки картинкой</label>
+   <label><input type="checkbox" id="webchatShow"> Показывать окно чата во время работы</label>
+   <button id="wcLogin">Войти в веб-чат…</button> <button id="wcCheck">Проверить вход</button> <button id="wcClear">Выйти (стереть сессию)</button>
+   <div id="wcStatus" class="hint">Вход выполняете вы сами в отдельном окне. Сессия хранится только на этом компьютере.</div>
+  </fieldset>
+  <label>Режим управления <select id="uiMode"><option value="hybrid">Гибрид: снимок, при неудаче — код страницы (по умолчанию)</option><option value="vision">Только зрение (тест)</option><option value="dom">⚡ Быстрый: только код (DOM/дерево доступности), без снимков экрана</option></select></label>
+  <label class="chk"><input type="checkbox" id="useMarks"> Метки элементов (дерево доступности: UIA/AT-SPI) — клик по номеру</label>
+  <label class="chk"><input type="checkbox" id="grid"> Координатная сетка на снимке</label>
+  <label>Монитор (номер с 0) <input id="monitor" type="number" min="0" max="8"></label>
+  <h3>Поведение</h3>
+  <label class="chk"><input type="checkbox" id="hideWindow"> Компактное окно поверх всех во время работы (не сворачивается)</label>
+  <label class="chk"><input type="checkbox" id="confirmCommands"> Спрашивать перед каждой командой оболочки (опасные спрашиваются всегда)</label>
+  <label class="chk"><input type="checkbox" id="typeViaClipboard"> Вводить текст через буфер обмена (быстрее для длинного текста)</label>
+  <label>Максимум шагов <input id="maxSteps" type="number" min="1" max="300"></label>
+  <label>Пауза после действия, мс <input id="settleMs" type="number" min="100" max="10000"></label>
+  <label>Бюджет контекста, токенов <input id="contextBudget" type="number" min="2000" max="1000000"></label>
+  <label>Контекст для Ollama (num_ctx) <input id="numCtx" type="number" min="2048" max="131072"></label>
+  <label>Температура <input id="temperature" type="number" step="0.05" min="0" max="2"></label>
+  <h3>Запасные провайдеры (сторож)</h3>
+  <p class="hint">Если основная модель не отвечает, упирается в лимит или ошибку — агент переключится на следующую. Одна строка — один провайдер: <code>провайдер | модель | ключ (необязательно)</code>, например <code>groq | qwen/qwen3.8-27b | gsk_…</code> или <code>engine | local</code>.</p>
+  <textarea id="fallbacksText" rows="3" spellcheck="false"></textarea>
+  <label>Бюджет на задачу, токенов (0 = без лимита; при достижении — автостоп) <input id="taskTokenBudget" type="number" min="0" max="100000000"></label>
+  <label>Максимум переключений между моделями <input id="maxHops" type="number" min="0" max="20"></label>
+  <label>Максимум повторов на задачу <input id="maxRetriesTask" type="number" min="0" max="100"></label>
+  <label class="chk"><input type="checkbox" id="autoFailover"> При зависании переключаться на гостевые чаты (Duck.ai, GLM, ChatGPT) с передачей контекста</label>
+  <label>Считать чат зависшим через, с <input id="hangSec" type="number" min="15" max="1800"></label>
+  <label>Новый чат после ходов (длинный чат путает модель) <input id="webchatMaxTurns" type="number" min="2" max="200"></label>
+  <label>Ограничение времени на задачу, мин <input id="maxMinutes" type="number" min="1" max="1440"></label>
+  <label>Разрешённые сайты (пусто = все), через запятую: <input id="allowedDomains" placeholder="*.onlinetestpad.com, duck.ai"></label>
+  <label>Запрещённые сайты: <input id="blockedDomains" placeholder="example.com"></label>
+  <label><input type="checkbox" id="recordRuns"> Записывать ход задачи (HTML-отчёт с кадрами)</label>
+  <label>Таймаут ответа модели, с <input id="timeoutSec" type="number" min="10" max="3600"></label>
+  <div class="row"><button id="save" class="primary">Сохранить</button><button id="shotTest">Проверить снимок экрана</button><button id="openData">Папка данных</button></div>
+  <div id="shotRes"></div>
+</div></section>
+
+<section id="tab-prompt" class="tab"><div class="form wide">
+  <p>Этот файл (<code>system_prompt.md</code>) отправляется нейросети <b>в каждом запросе</b>. Ниже него программа сама добавляет раздел «Окружение»: ОС, разрешение, приложения, инструменты и список команд.</p>
+  <textarea id="promptText" spellcheck="false"></textarea>
+  <div class="row"><button id="savePrompt" class="primary">Сохранить</button><button id="resetPrompt">Вернуть стандартный</button><button id="openPrompt">Открыть в редакторе</button><button id="previewEnv">Показать, что уходит модели</button></div>
+  <pre id="envPreview"></pre>
+</div></section>
+
+<section id="tab-local" class="tab"><div class="form">
+  <h3>Встроенная модель — одна кнопка</h3>
+  <p>Программа сама скачает движок <b>llama.cpp</b> и модель <b>Qwen2.5-VL</b> со зрением (без прав администратора и без отдельных программ), запустит её и включит в настройках. Сторож перезапустит движок, если он упадёт.</p>
+  <div id="engineState">…</div>
+  <label>Модель <select id="engineModel"></select></label>
+  <div class="row"><button id="engineSetup" class="primary">Скачать, настроить и запустить</button><button id="engineCancel">Отмена</button><button id="engineStop">Остановить движок</button></div>
+  <progress id="engineBar" max="100" value="0" hidden></progress>
+  <h3>Или через Ollama</h3>
+  <p>Нужна программа <b>Ollama</b>. Мастер сам скачает модель со зрением, создаст профиль <code>ivan-operator</code> (контекст, температура, системная инструкция) и включит его в настройках.</p>
+  <div id="ollamaState">Проверяю Ollama…</div>
+  <div class="row"><button id="installOllama">Установить Ollama</button><button id="recheck">Проверить снова</button></div>
+  <label>Модель <select id="localModel"></select></label>
+  <div class="row"><button id="setupLocal" class="primary">Скачать и настроить</button></div>
+  <div id="setupProgress"></div>
+  <p class="hint">Совет: на процессоре без видеокарты один шаг занимает 20–90 секунд. Для быстрой и точной работы — видеокарта NVIDIA от 8 ГБ или облачная модель (Claude, GPT-4.1, Gemini, Qwen2.5-VL-72B через OpenRouter).<br>Также можно указать запущенный <code>llama-server</code> (llama.cpp) в настройках: провайдер «llama.cpp server».</p>
+</div></section>
+<section id="tab-android" class="tab"><div class="form">
+  <h3>Android (adb / fastboot)</h3>
+  <p>Официальные Google Platform-Tools скачиваются по кнопке. Включите на телефоне «Для разработчиков → Отладка по USB». На Windows нужен драйвер Google USB Driver; при ошибках fastboot на USB 3.0 используйте порт/хаб USB 2.0.</p>
+  <div class="row"><button id="adbSetup">Установить adb/fastboot</button><button id="adbScan">Найти устройства</button></div>
+  <pre id="adbState"></pre>
+  <p class="hint">Прошивка (fastboot flash/erase/format, sideload, разблокировка загрузчика) и стирание данных выполняются только после вашего подтверждения в красном окне-предупреждении.</p>
+</div></section>
+<section id="tab-remote" class="tab"><div class="form">
+  <h3>Удалённый доступ (телефон / другой ПК)</h3>
+  <p>По умолчанию выключен. Включённый слушает только этот компьютер (127.0.0.1). Для телефона в той же Wi-Fi включите «Локальная сеть». Вход — по случайному токену, соединение шифруется (самоподписанный сертификат: браузер предупредит — сверьте отпечаток ниже).</p>
+  <label><input type="checkbox" id="rLan"> Локальная сеть / Wi-Fi (0.0.0.0)</label>
+  <label>Порт <input id="rPort" value="8787" size="6"></label>
+  <label>Ретранслятор (необязательно, wss://…) <input id="rRelay" placeholder="wss://ваш-сервер:8790"></label>
+  <div class="row"><button id="rStart" class="primary">Включить</button><button id="rStop">Выключить</button><button id="rOpen">Открыть в браузере</button><button id="rReset">Новый токен</button></div>
+  <pre id="rInfo"></pre>
+  <p class="hint">Через интернет: (1) Tailscale — установите на ПК и телефон, включите «Локальная сеть» и откройте https://&lt;tailscale-IP&gt;:8787; (2) cloudflared: <code>cloudflared tunnel --url https://127.0.0.1:8787 --no-tls-verify</code>; (3) свой ретранслятор relay/relay.js (содержимое зашифровано ключом из токена, сервер его не видит).</p>
+  <h3>Расписание задач</h3>
+  <div class="row"><input id="schSpec" placeholder="каждые 30 мин / ежедневно 09:00" size="22"><input id="schTask" placeholder="задача" size="40"><button id="schAdd">Добавить</button></div>
+  <pre id="schList"></pre>
+  <h3>Рецепты</h3><pre id="recList"></pre>
+</div></section>
+<section id="tab-auto" class="tab"><div class="form wide">
+  <h3>Настройки автономии</h3>
+  <label>Папки проектов (по одной в строке; их сохраняет «машина времени» перед рискованными действиями)<textarea id="auDirs" rows="2"></textarea></label>
+  <div class="row"><label><input type="checkbox" id="auSkills"> Сохранять успешные задачи как навыки</label><label><input type="checkbox" id="auAutoSwitch"> Автовыбор модели и переключение при зависании</label><label><input type="checkbox" id="auAdaptive"> Адаптивный выбор модели</label><label><input type="checkbox" id="auCp"> Авто-точки перед риском</label><label><input type="checkbox" id="auModelRisk"> Оценка риска моделью</label></div>
+  <div class="row"><label>Порог подтверждения риска <input id="auThr" size="4"></label><label>Предел попыток тестов <input id="auIter" size="4"></label><button id="auSave">Сохранить</button></div>
+  <h3>Машина времени</h3>
+  <div class="row"><input id="tmLabel" placeholder="название точки" size="30"><button id="tmCreate" class="primary">Создать точку</button><button id="tmRefresh">Обновить</button></div>
+  <div id="tmList"></div><pre id="tmOut"></pre>
+  <h3>Навыки</h3>
+  <div class="row"><input id="skName" placeholder="имя навыка" size="24"><button id="skFromLast">Сохранить последнюю задачу как навык</button><button id="skRefresh">Обновить</button></div>
+  <div id="skList"></div>
+  <label>Импорт/экспорт навыка (YAML)<textarea id="skYaml" rows="6"></textarea></label><div class="row"><button id="skImport">Импортировать</button></div><pre id="skOut"></pre>
+  <h3>Конструктор процесса</h3>
+  <label>Опишите процесс словами (шаги через «затем», «;» или с новой строки)<textarea id="wfText" rows="3" placeholder="создай точку; запусти тесты в ~/proj; затем покажи свободное место"></textarea></label>
+  <div class="row"><button id="wfGen">Построить шаги</button><label><input type="checkbox" id="wfModel"> с помощью модели</label><button id="wfRun" class="primary">Запустить</button></div>
+  <textarea id="wfSteps" rows="8" placeholder="шаги (JSON) — можно править перед запуском"></textarea><pre id="wfOut"></pre>
+  <h3>Заготовки (готовая основа с GitHub)</h3>
+  <div class="row"><input id="tpReq" placeholder="например: игра-платформер на raylib" size="40"><select id="tpKind"><option value="">авто</option><option value="site">сайт</option><option value="program">программа</option><option value="engine">движок/игра</option><option value="os">ОС</option></select><button id="tpSearch">Найти</button></div>
+  <div id="tpList"></div>
+  <h3>Аудит безопасности и статистика моделей</h3>
+  <div class="row"><input id="adDir" placeholder="папка" size="40"><button id="adRun">Проверить папку</button><button id="stRefresh">Статистика моделей</button></div>
+  <pre id="adOut"></pre>
+</div></section>
+<script src="renderer.js"></script></body></html>

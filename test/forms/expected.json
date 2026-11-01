@@ -1,0 +1,9 @@
+{
+ "basic": {"name":["text","Иван Воронцов"],"email":["email","ivan@example.com"],"phone":["tel","+7 914 123-45-67"],
+   "about":["textarea_cyrillic","Привет! Съешь же ещё этих мягких французских булок, да выпей чаю."],
+   "city":["select","vvo"],"size":["radio","M"],"terms":["checkbox","yes"],"news":["checkbox",null],
+   "date":["date","2026-11-05"],"file":["file","upload_test.txt"]},
+ "wizard": {"w_name":["wizard_text","Иван Воронцов"],"w_email":["wizard_text","ivan@example.com"],"w_zip":["wizard_scroll_page","690091"],
+   "w_qty":["wizard_scroll_page","3"],"w_color":["custom_dropdown","green"],"w_back":["wizard_back","1"]},
+ "validate": {"login":["validation_fix","ivanv"],"pass":["validation_fix","Secret2026"],"pass2":["validation_fix","Secret2026"],"age":["validation_fix","18"]}
+}

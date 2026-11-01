@@ -1,0 +1,109 @@
+{
+ "deepseek": {
+  "loaded": true,
+  "title": "DeepSeek",
+  "url": "https://chat.deepseek.com/sign_in",
+  "site": "deepseek",
+  "editor": false
+ },
+ "chatgpt": {
+  "loaded": true,
+  "title": "ChatGPT: Chat, Work, Create & Code with AI",
+  "url": "https://chatgpt.com/",
+  "site": "chatgpt",
+  "editor": true
+ },
+ "qwen": {
+  "loaded": true,
+  "title": "Qwen",
+  "url": "https://chat.qwen.ai/",
+  "site": "qwen",
+  "editor": true
+ },
+ "gigachat": {
+  "loaded": true,
+  "title": "ГигаЧат — русскоязычная нейросеть от Сбера",
+  "url": "https://giga.chat/",
+  "site": "gigachat",
+  "editor": false
+ },
+ "alice": {
+  "loaded": true,
+  "title": "Нейросеть Алиса AI - бесплатный ии-чат Яндекса с генерацией текстов и изображений",
+  "url": "https://alice.yandex.ru/",
+  "site": "other",
+  "editor": true
+ },
+ "copilot": {
+  "loaded": true,
+  "title": "Microsoft Copilot | Sign in",
+  "url": "https://copilot.com/",
+  "site": "other",
+  "editor": false
+ },
+ "huggingchat": {
+  "loaded": true,
+  "title": "HuggingChat",
+  "url": "https://huggingface.co/chat/",
+  "site": "other",
+  "editor": true
+ },
+ "duckai": {
+  "loaded": true,
+  "title": "Duck.ai by DuckDuckGo. Private AI chat. Free.",
+  "url": "https://duck.ai/",
+  "site": "duck",
+  "editor": true
+ },
+ "claude": {
+  "fail": "",
+  "loaded": true,
+  "title": "Sign in - Claude",
+  "url": "https://claude.ai/login?from=logout&reauth=1&returnTo=%2Fnew%3F",
+  "site": "claude",
+  "editor": false
+ },
+ "gemini": {
+  "loaded": true,
+  "title": "Google Gemini",
+  "url": "https://gemini.google.com/app",
+  "site": "gemini",
+  "editor": true
+ },
+ "grok": {
+  "loaded": true,
+  "title": "Grok",
+  "url": "https://grok.com/",
+  "site": "grok",
+  "editor": true
+ },
+ "mistral": {
+  "fail": "",
+  "loaded": true,
+  "title": "Vibe Chat",
+  "url": "https://chat.mistral.ai/chat",
+  "site": "mistral",
+  "editor": false
+ },
+ "perplexity": {
+  "loaded": true,
+  "title": "Perplexity",
+  "url": "https://www.perplexity.ai/",
+  "site": "perplexity",
+  "editor": true
+ },
+ "kimi": {
+  "loaded": true,
+  "title": "Kimi AI with K3.1 Pro | Built for Coding & Agentic Work",
+  "url": "https://www.kimi.com/",
+  "site": "kimi",
+  "editor": true
+ },
+ "glm": {
+  "loaded": true,
+  "title": "Z.ai - Advanced AI Chatbot & Agent powered by GLM-5.3-Flash",
+  "url": "https://chat.z.ai/",
+  "site": "glm",
+  "editor": true
+ }
+}

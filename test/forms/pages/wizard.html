@@ -1,0 +1,29 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Мастер заказа</title>
+<style>.step{display:none}.step.on{display:block}.err{color:red}</style></head><body>
+<h1>Мастер заказа</h1><form id="f" method="post" action="/wizard">
+<div class="step on" id="st1"><h2>Шаг 1 из 3: Контакты</h2>
+<p><label for="w_name">ФИО</label> <input id="w_name" name="w_name"></p>
+<p><label for="w_email">Email</label> <input id="w_email" name="w_email"></p>
+<p class="err" id="e1"></p><button type="button" id="next1">Далее</button></div>
+<div class="step" id="st2"><h2>Шаг 2 из 3: Доставка</h2>
+<p><label for="w_zip">Индекс (6 цифр)</label> <input id="w_zip" name="w_zip"></p>
+<p><label for="w_qty">Количество (1–10)</label> <input id="w_qty" name="w_qty"></p>
+<div style="height:1400px;background:linear-gradient(#fff,#eef)">(прокрутите вниз к кнопкам)</div><p class="err" id="e2"></p><button type="button" id="back2">Назад</button> <button type="button" id="next2">Далее</button></div>
+<div class="step" id="st3"><h2>Шаг 3 из 3: Подтверждение</h2>
+<p>Цвет: <div id="color" role="combobox" aria-label="Цвет" tabindex="0" style="border:1px solid #888;width:200px;padding:4px;cursor:pointer">Выберите цвет ▾</div>
+<ul id="colorlist" role="listbox" style="display:none;border:1px solid #888;width:200px;margin:0;padding:0;list-style:none">
+<li role="option" data-v="red" style="padding:4px">Красный</li><li role="option" data-v="green" style="padding:4px">Зелёный</li><li role="option" data-v="blue" style="padding:4px">Синий</li></ul>
+<input type="hidden" name="w_color" id="w_color"><input type="hidden" name="w_back" id="w_back" value="0"></p>
+<p class="err" id="e3"></p><button type="button" id="back3">Назад</button> <button type="submit">Оформить заказ</button></div>
+</form><script>
+const $=id=>document.getElementById(id);
+function show(n){document.querySelectorAll('.step').forEach(e=>e.classList.remove('on'));$('st'+n).classList.add('on')}
+$('next1').onclick=()=>{ if($('w_name').value.trim().split(/\s+/).length<2){$('e1').textContent='Ошибка: введите имя и фамилию';return}
+ if(!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test($('w_email').value)){$('e1').textContent='Ошибка: неверный email';return} show(2)};
+$('next2').onclick=()=>{ if(!/^\d{6}$/.test($('w_zip').value)){$('e2').textContent='Ошибка: индекс должен быть из 6 цифр';return}
+ const q=+$('w_qty').value; if(!(q>=1&&q<=10)){$('e2').textContent='Ошибка: количество от 1 до 10';return} show(3)};
+$('back2').onclick=()=>show(1);$('back3').onclick=()=>{window.__back3=1;show(2)};
+$('color').onclick=()=>{$('colorlist').style.display='block'};
+document.querySelectorAll('#colorlist li').forEach(li=>li.onclick=()=>{$('w_color').value=li.dataset.v;$('color').textContent=li.textContent;$('colorlist').style.display='none'});
+$('f').onsubmit=e=>{ $('w_back').value=window.__back3?'1':'0'; if(!$('w_color').value){e.preventDefault();$('e3').textContent='Ошибка: выберите цвет'} };
+</script></body></html>

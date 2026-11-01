@@ -1,0 +1,46 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ИванОператор — удалённо</title>
+<style>body{font:15px system-ui,sans-serif;margin:0;background:#111;color:#eee}header{padding:8px 12px;background:#222;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{background:#2d6cdf;color:#fff;border:0;border-radius:6px;padding:7px 12px;font-size:15px}button.r{background:#c33}button.g{background:#555}
+#scr{width:100%;max-height:55vh;object-fit:contain;background:#000;display:block}#log{height:28vh;overflow:auto;padding:8px;font-size:13px;white-space:pre-wrap}
+form{display:flex;gap:6px;padding:8px}input{flex:1;padding:8px;font-size:15px;border-radius:6px;border:1px solid #444;background:#1b1b1b;color:#eee}#st{margin-left:auto;opacity:.8}</style></head>
+<body><header><b>ИванОператор</b><button id="stop" class="r">Стоп</button><button id="pause" class="g">Взять управление</button><button id="resume" class="g">Продолжить</button><label><input type="checkbox" id="live" checked style="flex:0"> экран</label><span id="st">…</span></header>
+<img id="scr" alt="экран"><div id="log"></div>
+<form id="f"><input id="t" placeholder="Задача для агента…" autocomplete="off"><button>Отправить</button></form>
+<script>
+'use strict';
+const q = new URLSearchParams(location.hash.slice(1));
+let token = q.get('t') || sessionStorage.getItem('iopt') || prompt('Токен сопряжения из ИванОператора:') || '';
+sessionStorage.setItem('iopt', token); history.replaceState(null, '', location.pathname + location.search);
+const relayUrl = new URLSearchParams(location.search).get('relay');
+const $ = (i) => document.getElementById(i); const log = (s) => { const d = $('log'); d.textContent += s + '\n'; d.scrollTop = 1e9; };
+let ws, seq = 0; const wait = new Map(); let key = null;
+const enc = new TextEncoder(), dec = new TextDecoder();
+async function sha(s) { return new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s))); }
+const hex = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+const b64 = (b) => btoa(String.fromCharCode(...b)); const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function seal(o) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(o))));
+  const tag = ct.slice(-16), body = ct.slice(0, -16); const out = new Uint8Array(12 + 16 + body.length); out.set(iv); out.set(tag, 12); out.set(body, 28);
+  let s = ''; for (const x of out) s += String.fromCharCode(x); return btoa(s); }
+async function open(s) { const b = unb64(s); const iv = b.slice(0, 12), tag = b.slice(12, 28), body = b.slice(28); const ct = new Uint8Array(body.length + 16); ct.set(body); ct.set(tag, body.length);
+  return JSON.parse(dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct))); }
+async function onMsg(o) {
+  if (o.event) { const e = o.event; log(`[${e.kind}] ${e.text || (e.thought ? e.thought : '') || (e.action ? JSON.stringify(e.action) : '')}`); if (/done|error|ask/.test(e.kind)) $('st').textContent = 'готов'; return; }
+  const w = wait.get(o.id); if (w) { wait.delete(o.id); w(o); }
+}
+async function connect() {
+  if (relayUrl) { key = await crypto.subtle.importKey('raw', await sha('iop-relay:' + token), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    ws = new WebSocket(relayUrl.replace(/\/$/, '') + '/client/' + hex(await sha('iop-room:' + token)).slice(0, 32));
+    ws.onmessage = async (m) => { try { await onMsg(await open(JSON.parse(m.data).data)); } catch {} };
+  } else { ws = new WebSocket(`wss://${location.host}/ws?t=${encodeURIComponent(token)}`); ws.onmessage = (m) => onMsg(JSON.parse(m.data)); }
+  ws.onopen = () => { $('st').textContent = 'подключено'; call('history').then((r) => (r.history || []).slice(-20).forEach((h) => log(`${h.role}: ${h.text || ''}`))); };
+  ws.onclose = () => { $('st').textContent = 'нет связи — переподключаюсь'; setTimeout(connect, 3000); };
+}
+async function call(op, extra = {}) { const id = ++seq; const msg = { id, op, ...extra };
+  return new Promise(async (ok) => { wait.set(id, ok); setTimeout(() => { if (wait.delete(id)) ok({ ok: false, error: 'тайм-аут' }); }, 20000);
+    ws.send(relayUrl ? JSON.stringify({ data: await seal(msg) }) : JSON.stringify(msg)); }); }
+$('f').onsubmit = async (e) => { e.preventDefault(); const t = $('t').value.trim(); if (!t) return; $('t').value = ''; log('Вы: ' + t); const r = await call('task', { text: t }); $('st').textContent = r.ok ? 'работаю…' : (r.error || 'ошибка'); };
+$('stop').onclick = () => call('stop'); $('pause').onclick = () => call('pause'); $('resume').onclick = () => call('resume');
+setInterval(async () => { if (!$('live').checked || !ws || ws.readyState !== 1) return; const r = await call('screen'); if (r.jpeg) $('scr').src = 'data:image/jpeg;base64,' + r.jpeg; }, 2000);
+connect();
+</script></body></html>

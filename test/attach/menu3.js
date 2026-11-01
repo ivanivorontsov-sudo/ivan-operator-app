@@ -1,0 +1,10 @@
+const { app, BrowserWindow } = require('electron');
+const sl = (ms) => new Promise(r => setTimeout(r, ms));
+app.whenReady().then(async () => { const w = new BrowserWindow({ width: 1200, height: 900, show: true });
+  await w.loadURL('https://alice.yandex.ru/'); await sl(8000); const wc = w.webContents;
+  await wc.executeJavaScript(`(()=>{window.L=[];const P=HTMLInputElement.prototype;P.click=function(){L.push('click '+this.type+' '+this.accept)};if(P.showPicker)P.showPicker=function(){L.push('showPicker')};window.showOpenFilePicker=function(){L.push('sofp');return new Promise(()=>{})}})()`);
+  const rc = async (sel) => { const r = await wc.executeJavaScript(`(()=>{const e=${sel};if(!e)return null;const b=e.getBoundingClientRect();return [b.x+b.width/2,b.y+b.height/2]})()`); if (!r) return 'none';
+    for (const type of ['mouseMove', 'mouseDown', 'mouseUp']) wc.sendInputEvent({ type, x: Math.round(r[0]), y: Math.round(r[1]), button: 'left', clickCount: 1 }); return r; };
+  console.log('[M3] btn', await rc(`document.querySelector('[data-testid="InputControls-More-Button"]')`)); await sl(1200);
+  console.log('[M3] item', await rc(`[...document.querySelectorAll('[role=menuitem]')].find(x=>/Добавить фото/.test(x.innerText))`)); await sl(2000);
+  console.log('[M3]', await wc.executeJavaScript(`JSON.stringify([L,document.querySelectorAll('input[type=file]').length])`)); app.quit(); });

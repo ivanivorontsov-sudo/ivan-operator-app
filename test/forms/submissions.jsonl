@@ -1,0 +1,6 @@
+{"page": "basic", "ts": 1793188855.2537477, "data": {"name": "Иван Воронцов", "email": "ivan@example.com", "phone": "+7 914 123-45-67", "about": "Привет! Съешь же ещё этих мягких французских булок, да выпей чаю.", "city": "vvo", "size": "M", "terms": "yes", "date": "2026-11-05", "file": "upload_test.txt"}}
+{"page": "wizard", "ts": 1793188855.6020916, "data": {"w_name": "Иван Воронцов", "w_email": "ivan@example.com", "w_zip": "690091", "w_qty": "3", "w_color": "green", "w_back": "1"}}
+{"page": "validate", "ts": 1793188855.7688596, "data": {"login": "ivanv", "pass": "Secret2026", "pass2": "Secret2026", "age": "18"}}
+{"page": "basic", "ts": 1793188870.9691203, "data": {"name": "Иван Воронцов", "email": "ivan@example.com", "phone": "+7 914 123-45-67", "about": "Привет! Съешь же ещё этих мягких французских булок, да выпей чаю.", "city": "vvo", "size": "M", "terms": "yes", "date": "2026-11-05", "file": "upload_test.txt"}}
+{"page": "wizard", "ts": 1793188871.318028, "data": {"w_name": "Иван Воронцов", "w_email": "ivan@example.com", "w_zip": "690091", "w_qty": "3", "w_color": "green", "w_back": "1"}}
+{"page": "validate", "ts": 1793188871.4677627, "data": {"login": "ivanv", "pass": "Secret2026", "pass2": "Secret2026", "age": "18"}}

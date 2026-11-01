@@ -1,0 +1,2 @@
+beta: gh v1.1.0-beta; catbox io0unb.AppImage ix6y50.zip; gofile w6IB95sZ bnQfzgZg
+v1.1.0 linux: gh releases/tag/v1.1.0; catbox dzj8o9.AppImage lije5s.deb; gofile 4cYeEBpc xnohBhSo

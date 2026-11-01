@@ -1,0 +1,15 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Регистрация</title><style>.err{color:red}</style></head><body>
+<h1>Регистрация</h1><form id="f" method="post" action="/validate" novalidate>
+<p><label for="login">Логин (латиница, 4–12)</label> <input id="login" name="login"></p>
+<p><label for="pass">Пароль (≥8, есть цифра)</label> <input id="pass" name="pass" type="password"></p>
+<p><label for="pass2">Повтор пароля</label> <input id="pass2" name="pass2" type="password"></p>
+<p><label for="age">Возраст</label> <input id="age" name="age" type="number"></p>
+<p class="err" id="err"></p><button type="submit">Зарегистрироваться</button></form>
+<script>
+document.getElementById('f').onsubmit=e=>{const v=id=>document.getElementById(id).value;const errs=[];
+ if(!/^[a-z0-9]{4,12}$/i.test(v('login')))errs.push('логин: только латиница/цифры, 4–12 символов');
+ if(v('pass').length<8||!/\d/.test(v('pass')))errs.push('пароль: минимум 8 символов и цифра');
+ if(v('pass')!==v('pass2'))errs.push('пароли не совпадают');
+ if(!(+v('age')>=18&&+v('age')<=120))errs.push('возраст: от 18 до 120');
+ if(errs.length){e.preventDefault();document.getElementById('err').textContent='Ошибки: '+errs.join('; ')}};
+</script></body></html>
