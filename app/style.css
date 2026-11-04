@@ -23,3 +23,8 @@ body.compact .btns button:not(#stop) { display: none; }
 .composer #chatPick{grid-area:pick;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .composer textarea#input{grid-area:input;width:100%;box-sizing:border-box;min-height:96px;height:auto;max-height:40vh;resize:vertical;font-size:14px;line-height:1.4}
 .composer .btns{grid-area:btns;min-width:170px}
+
+#legalModal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999}
+#legalModal[hidden]{display:none}
+#legalModal .legalBox{background:#fff;color:#111;max-width:760px;width:92vw;max-height:90vh;display:flex;flex-direction:column;padding:16px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+#legalModal pre{white-space:pre-wrap;font:13px/1.45 system-ui,sans-serif;overflow:auto;flex:1;border:1px solid #ccc;padding:10px;margin:8px 0;background:#fafafa}

@@ -1,6 +1,6 @@
 {
   "name": "ivanoperator",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "ИванОператор — ИИ управляет компьютером по скриншотам",
   "main": "app/main.js",
   "author": {

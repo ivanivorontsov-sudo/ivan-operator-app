@@ -16,6 +16,8 @@
 </section>
 
 <section id="tab-settings" class="tab"><div class="form">
+  <h3>Юридическая информация</h3>
+  <div class="row"><button id="legalShow">Условия использования и предупреждение</button> <span id="legalState" class="hint"></span></div>
   <h3>Модель</h3>
   <label>Провайдер <select id="provider"></select></label>
   <label>Адрес API <input id="base" placeholder="по умолчанию для провайдера"></label>
@@ -147,4 +149,7 @@
   <div class="row"><button id="pxExport">Экспорт навыков/памяти/настроек</button><button id="pxImport">Импорт</button><label><input type="checkbox" id="pxSettings"> импортировать и настройки (без ключей)</label></div>
   <pre id="xOut"></pre>
 </div></section>
+<div id="legalModal" hidden><div class="legalBox"><h2>Прежде чем начать</h2><pre id="legalText"></pre>
+<label class="chk" id="legalChkRow"><input type="checkbox" id="legalChk"> Я прочитал(а) и принимаю</label>
+<div class="btns"><button id="legalAccept" class="primary" disabled>Принять</button><button id="legalQuit">Выйти</button><button id="legalClose" hidden>Закрыть</button></div></div></div>
 <script src="renderer.js"></script></body></html>

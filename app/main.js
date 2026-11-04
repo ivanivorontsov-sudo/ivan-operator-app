@@ -49,6 +49,7 @@ const DEFAULTS = {
   autoSkills: true, adaptiveModels: true, autoModelSwitch: true, autoCheckpoint: true, projectDirs: [], riskConfirmThreshold: 55, testMaxIter: 5, modelRisk: false,
 };
 
+const legal = require('./legal');
 let win = null, history = null, agent = null, settings = null, engine = null;
 const dataDir = () => app.getPath('userData');
 const settingsFile = () => path.join(dataDir(), 'settings.json');
@@ -63,6 +64,8 @@ function loadSettings() {
   return { ...DEFAULTS, ...s };
 }
 function saveSettings(s) {
+  // принятие условий меняется только через legal-accept (импорт/откат/интерфейс его не затирают и не подделывают)
+  s = { ...s, legalAccepted: s && s.legalAcceptNew ? s.legalAcceptNew : (settings && settings.legalAccepted) || undefined }; delete s.legalAcceptNew;
   settings = { ...DEFAULTS, ...s }; if (app.isReady()) applyProxyAll();
   const disk = { ...settings };
   // ключ API хранится только локально; по возможности — зашифрованным средствами ОС
@@ -114,6 +117,9 @@ function makeAgent() {
 try { if (platform.sessionInfo().wayland) platform.ensureYdotoold().catch(() => {}); } catch {}
 ipcMain.handle('get-settings', () => ({ settings, presets: providers.PRESETS, profiles: Object.fromEntries(Object.entries(sizing.PROFILES).map(([k, v]) => [k, v.label])), choices: localsetup.CHOICES, recommended: localsetup.recommend(), platform: process.platform, session: { ...platform.sessionInfo(), wl: (() => { try { return platform.waylandStatus(); } catch { return null; } })() }, dataDir: dataDir() }));
 ipcMain.handle('save-settings', (_e, s) => saveSettings(s));
+ipcMain.handle('legal-get', () => ({ text: legal.LEGAL_TEXT, version: legal.LEGAL_VERSION, accepted: legal.isAccepted(settings), record: settings.legalAccepted || null }));
+ipcMain.handle('legal-accept', () => { saveSettings({ ...settings, legalAcceptNew: legal.acceptRecord(app.getVersion()) }); return settings.legalAccepted; });
+ipcMain.handle('legal-quit', () => { app.quit(); return true; });
 ipcMain.handle('history', () => history.visible().map((e) => ({ role: e.role, text: e.text, raw: e.raw, ts: e.ts })));
 ipcMain.handle('send', async (_e, text) => {
   // 1.3.0: «стоп» словами = кнопка «Стоп»; после стопа новая задача ждёт, пока старая полностью остановится
@@ -283,6 +289,8 @@ app.whenReady().then(async () => {
   // встроенная модель запускается вместе с программой
   if (settings.provider === 'engine' && settings.engineModel) engine.start(settings.engineModel).catch((e) => emit({ kind: 'warn', text: 'Встроенная модель не запустилась: ' + e.message }));
   makeAgent();
+  // 1.2.8: без принятия юридического предупреждения агент не запускается (окно, удалённо, по расписанию)
+  { const run0 = agent.run.bind(agent); agent.run = (...a) => { if (!legal.isAccepted(settings) && !process.env.IOP_HEADLESS) { emit({ kind: 'error', text: 'Сначала примите условия использования (Настройки → Юридическая информация).' }); return Promise.resolve({ ok: false, error: 'legal' }); } return run0(...a); }; }
   remote = new Remote(dataDir(), {
     run: (t) => { if (agent.running) return { ok: false, error: 'Уже выполняется задача' }; emit({ kind: 'info', text: 'Задача пришла удалённо.' }); agent.run(t); return { ok: true }; },
     stop: () => agent.stop(), pause: () => agent.pause(), unpause: () => agent.unpause(),

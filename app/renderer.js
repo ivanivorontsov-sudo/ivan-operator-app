@@ -230,3 +230,19 @@ $('pxImport').onclick = async () => auShow('xOut', await AU('import', { settings
 // 1.2.2: быстрый переключатель в главном окне
 (async () => { try { const { settings: s } = await iop.getSettings(); $('qAutoSwitch').checked = s.autoModelSwitch !== false; } catch {} })();
 $('qAutoSwitch').onchange = async () => { const { settings: s } = await iop.getSettings(); const v = $('qAutoSwitch').checked; await iop.saveSettings({ ...s, autoModelSwitch: v }); if ($('auAutoSwitch')) $('auAutoSwitch').checked = v; };
+
+// 1.2.8: юридическое предупреждение — при первом запуске и после изменения редакции текста
+async function legalOpen(force) {
+  const L = await iop.legalGet(); const done = L.accepted;
+  $('legalState').textContent = L.record ? `принято ${new Date(L.record.date).toLocaleString('ru-RU')} (редакция ${L.record.version})` : 'не принято';
+  if (done && !force) return;
+  $('legalText').textContent = L.text; $('legalChk').checked = false; $('legalAccept').disabled = true;
+  $('legalChkRow').hidden = $('legalAccept').hidden = $('legalQuit').hidden = done; $('legalClose').hidden = !done;
+  $('legalModal').hidden = false; $('legalText').scrollTop = 0;
+}
+$('legalChk').addEventListener('change', () => { $('legalAccept').disabled = !$('legalChk').checked; });
+$('legalAccept').onclick = async () => { if (!$('legalChk').checked) return; await iop.legalAccept(); $('legalModal').hidden = true; legalOpen(false); };
+$('legalQuit').onclick = () => iop.legalQuit();
+$('legalClose').onclick = () => { $('legalModal').hidden = true; };
+$('legalShow').onclick = () => legalOpen(true);
+legalOpen(false).catch((e) => console.error(e));

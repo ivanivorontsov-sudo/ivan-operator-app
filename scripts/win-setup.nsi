@@ -1,4 +1,4 @@
-; ИванОператор — установщик Windows, собирается нативным makensis на Linux (без wine). 1.2.7
+; ИванОператор — установщик Windows, собирается нативным makensis на Linux (без wine). 1.2.8
 Unicode true
 !include "MUI2.nsh"
 !ifndef VERSION
