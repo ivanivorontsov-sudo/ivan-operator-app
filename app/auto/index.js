@@ -12,6 +12,7 @@ const osexec = require('./osexec');
 const tester = require('./tester');
 const templates = require('./templates');
 const workflow = require('./workflow');
+const extra = require('./extra');
 
 function runFile(cmd, args, cwd, timeout = 300000) {
   return new Promise((res) => execFile(cmd, args, { cwd, timeout, maxBuffer: 8 << 20, shell: false }, (e, so, se) => res({ code: e ? (typeof e.code === 'number' ? e.code : 1) : 0, output: String(so || '') + String(se || '') })));
@@ -27,6 +28,9 @@ class Autonomy {
     this.skills = new SkillLibrary(dataDir);
     this.stats = new ModelStats(dataDir);
     this.testRuns = 0;
+    this.memory = new extra.SharedMemory(dataDir);
+    this.agents = new extra.AgentBuilder(dataDir);
+    this._locks = {};
   }
   startTask() { this.testRuns = 0; this._cpDone = false; }
   autoCheckpoint(s, reason) {
@@ -47,8 +51,43 @@ class Autonomy {
     }
     return null;
   }
+  // 1.2.6: подсказки в системный промпт — профиль активного помощника + общая память
+  extraHint(s, task) {
+    let h = '';
+    try { if (s.activeAgent) { const p = this.agents.get(s.activeAgent); if (p) h += '\n\n## РОЛЬ\n' + p.prompt; } } catch {}
+    try { if (s.sharedMemory !== false) h += this.memory.hint(task); } catch {}
+    return h;
+  }
+  // нейросети для роя/параллельного решения: при выключенном «Автовыборе модели» — только выбранная
+  chats(agent, s) {
+    const auto = require('../chain').autoOn(s);
+    const list = auto && agent._chain && agent._chain.length ? agent._chain : [s];
+    const seen = new Set(); const out = [];
+    for (const c of list) { const id = agent.provId(c); if (seen.has(id)) continue; seen.add(id);
+      // один и тот же веб-чат нельзя дёргать параллельно — очередь на каждый id
+      out.push({ id, chat: (m) => { const prev = this._locks[id] || Promise.resolve(); const p = prev.catch(() => {}).then(() => agent.chat(c, m)); this._locks[id] = p; return p; } }); }
+    return out.slice(0, Math.max(1, s.swarmSize || 3));
+  }
   async execute(agent, a, s, obs, parsed, stats, setClick) {
     const T = a.type;
+    if (T === 'research') { const r = await extra.research(String(a.topic || a.query || ''), { chat: (m) => agent.chat(s, m), dataDir: this.dataDir, pages: Math.min(6, a.pages || 3), signal: agent.ctl && agent.ctl.signal }); return `Отчёт сохранён: ${r.file}\n${r.report.slice(0, 6000)}`; }
+    if (T === 'swarm') { const ch = this.chats(agent, s); const r = await extra.swarm(String(a.task || ''), ch, { maxParts: Math.min(6, a.parts || 4), signal: agent.ctl && agent.ctl.signal }); return `Рой (${ch.map((c) => c.id).join(', ')}): частей ${r.parts.length}.\n${String(r.result).slice(0, 6000)}`; }
+    if (T === 'parallel') {
+      const ch = this.chats(agent, s); let verify;
+      if (a.test_command && a.dir) verify = async (text) => { const code = (String(text).match(/```[a-z]*\n([\s\S]*?)```/) || [])[1]; if (!code || !a.file) return { score: 0.1, why: 'нет кода' }; const f = path.resolve(a.dir, a.file); if (!f.startsWith(path.resolve(a.dir))) return { score: 0, why: 'путь вне папки' }; const old = fs.existsSync(f) ? fs.readFileSync(f) : null; fs.writeFileSync(f, code); const deny = await this.gate(agent, { type: 'run', command: a.test_command }, s, a.test_command); if (deny) { if (old) fs.writeFileSync(f, old); return { score: 0, why: deny }; } const r = await (require('../platform')).shellRun(a.test_command, 300000, { cwd: a.dir }); if (old) fs.writeFileSync(f, old); else fs.unlinkSync(f); return { score: r.code === 0 ? 1 : 0, why: 'тест: код ' + r.code }; };
+      const r = await extra.parallel(String(a.task || ''), ch, { n: Math.min(5, a.n || 3), verify, judge: (m) => agent.chat(s, m) });
+      return `Лучший вариант (${r.best.who}, оценка ${r.best.score.toFixed(2)}, ${r.best.why}) из ${r.candidates.length}:\n${String(r.best.text).slice(0, 6000)}`;
+    }
+    if (T === 'memory_add') { const x = this.memory.add({ topic: a.topic, solution: a.solution, tags: a.tags || [], verified: !!a.verified }); return `В общую память записано: «${x.topic}».`; }
+    if (T === 'memory_search') { const r = this.memory.search(a.query || '', 5); return r.length ? r.map((x) => `- ${x.topic}: ${x.solution.slice(0, 500)}`).join('\n') : 'В общей памяти ничего похожего.'; }
+    if (T === 'discover') { const r = await extra.discover({ has, run: (c, ar, cwd, t) => runFile(c, ar, cwd, t) }); const sug = a.task ? extra.suggestTools(String(a.task), r.tools, process.platform, () => r.tools.some((t) => t.cmd === 'apt-get')) : null;
+      return `Есть: ${r.tools.filter((t) => t.ok).map((t) => t.cmd).join(', ')}\nНет: ${r.tools.filter((t) => !t.ok).map((t) => t.cmd).join(', ')}\nВозможности: ${r.capabilities.join(' ') || '—'}` + (sug ? `\nДля задачи нужны: ${sug.want.join(', ') || '—'}; не хватает: ${sug.missing.join(', ') || '—'}${sug.install.length ? '\nУстановить (через {"type":"install_tool","tool":"…"}): ' + sug.install.map((x) => x.command).join(' ; ') : ''}` : ''); }
+    if (T === 'install_tool') { const mgr = process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'brew' : 'apt'; const cmd = extra.installCmd(String(a.tool || ''), mgr); if (!cmd) return 'ОШИБКА: не знаю, как поставить ' + a.tool + ' на этой системе.';
+      const ok = agent.confirm && await agent.confirm(cmd, ['Установка программы ' + a.tool + ' (менеджер пакетов системы)']); if (!ok) return 'Иван не разрешил установку.';
+      const r = await (require('../platform')).shellRun(cmd, 900000, { signal: agent.ctl && agent.ctl.signal }); return `Код ${r.code}: ${(r.output || '').slice(-1500)}`; }
+    if (T === 'maintain') { const r = extra.maintain(this.dataDir, { apply: false }); if (a.apply && r.cleaned.length) { const ok = agent.confirm && await agent.confirm(`Удалить старые файлы (${r.cleaned.length})`, r.cleaned.slice(0, 10)); if (ok) Object.assign(r, extra.maintain(this.dataDir, { apply: true })); } return 'Обслуживание: ' + JSON.stringify(r).slice(0, 3000); }
+    if (T === 'analyze_screen') { const P = require('../platform'); const I = require('../imaging'); const sigs = []; for (let i = 0; i < 3; i++) { try { sigs.push(I.signature((await P.screenshot(s.monitor || 0)).img)); } catch {} await P.sleep(400); } const r = extra.analyzeFrames(sigs, { diffRatio: I.diffRatio, windowTitle: await P.activeWindow().catch(() => '') }); return 'Анализ экрана: ' + r.ru + ` (изменение ${r.changed}, яркость ${r.brightness})`; }
+    if (T === 'build_agent') { const p = this.agents.build(a.description, { name: a.name }); this.agents.save(p); return `Создан помощник «${p.name}». Включить: настройка «Активный помощник» во вкладке «Автономия».`; }
     if (T === 'checkpoint') { const r = this.tm.checkpoint({ label: a.label || 'Точка от агента', paths: existingDirs(a.paths && a.paths.length ? a.paths : s.projectDirs), settings: cleanSettings(s) }); this.tm.prune(); return `Контрольная точка ${r.id}: файлов ${r.files}${r.skipped ? ', пропущено ' + r.skipped : ''}.`; }
     if (T === 'os') {
       const b = osexec.build(a.intent, a.args || {});
@@ -100,4 +139,4 @@ class Autonomy {
     }
   }
 }
-module.exports = { Autonomy, cleanSettings, runFile, has, existingDirs, risk, osexec, tester, templates, workflow };
+module.exports = { Autonomy, cleanSettings, runFile, has, existingDirs, risk, osexec, tester, templates, workflow, extra };

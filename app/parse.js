@@ -5,7 +5,10 @@ const ALIASES = { left_click: 'click', leftclick: 'click', tap: 'click', doublec
   launch: 'open_app', open: 'open_app', open_application: 'open_app', start_app: 'open_app', run_app: 'open_app',
   open_chrome: 'browser_open', launch_chrome: 'browser_open', open_browser: 'browser_open', launch_browser: 'browser_open', start_browser: 'browser_open', start_chrome: 'browser_open', chrome: 'browser_open', browser: 'browser_open', navigate: 'browser_open', goto: 'browser_open', go_to: 'browser_open', open_url: 'browser_open', open_link: 'browser_open', visit: 'browser_open', browse: 'browser_open', browser_navigate: 'browser_open', browser_goto: 'browser_open', open_website: 'browser_open', open_site: 'browser_open', shell: 'run', bash: 'run', exec: 'run', command: 'run', sleep: 'wait', finish: 'done', finished: 'done', answer: 'done', stop: 'done', terminate: 'done', ask: 'ask_user', mouse_move: 'move', scroll_down: 'scroll', scroll_up: 'scroll', left_click_drag: 'drag' };
 const TYPES = new Set(['click', 'double_click', 'triple_click', 'right_click', 'middle_click', 'move', 'drag', 'scroll', 'type', 'key', 'open_app', 'run', 'wait', 'zoom', 'screenshot', 'ask_user', 'done',
-  'browser_open', 'browser_click', 'browser_type', 'browser_key', 'browser_read', 'browser_back', 'browser_scroll', 'browser_close', 'browser_dismiss', 'browser_select', 'browser_check', 'browser_upload', 'browser_fill', 'android_devices', 'android_setup', 'adb', 'fastboot', 'github', 'run_recipe']);
+  'browser_open', 'browser_click', 'browser_type', 'browser_key', 'browser_read', 'browser_back', 'browser_scroll', 'browser_close', 'browser_dismiss', 'browser_select', 'browser_check', 'browser_upload', 'browser_fill', 'android_devices', 'android_setup', 'adb', 'fastboot', 'github', 'run_recipe',
+  // 1.3.0/1.2.6: автономия (раньше эти типы отбрасывались как invalid — исправлено)
+  'run_skill', 'checkpoint', 'os', 'run_tests', 'audit', 'template_search', 'template_fetch',
+  'research', 'swarm', 'parallel', 'memory_add', 'memory_search', 'discover', 'install_tool', 'maintain', 'analyze_screen', 'build_agent']);
 
 let jsonrepair = null; try { ({ jsonrepair } = require('jsonrepair')); } catch {}
 // jsonrepair (josdejong/jsonrepair, ISC): чинит комментарии //, висячие запятые, кавычки, обрезанный JSON — частое у веб-чатов

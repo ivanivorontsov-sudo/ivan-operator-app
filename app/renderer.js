@@ -209,6 +209,24 @@ $('tpList').onclick = async (e) => { const b = e.target.closest('button'); if (!
 $('adRun').onclick = async () => { $('adOut').textContent = 'Проверяю…'; const r = await AU('audit', { dir: $('adDir').value }); auShow('adOut', r.ok ? r.summary : r); };
 $('stRefresh').onclick = async () => { const r = await AU('stats'); auShow('adOut', r.ok ? (r.table.length ? r.table.map((t) => `${t.type.padEnd(9)} ${t.prov}  успех ${t.ok}/${t.n} · оценка ${t.score.toFixed(2)}`).join('\n') : 'Статистики пока нет.') : r); };
 
+// ===== 1.2.6 =====
+const mmRender = (r) => { if (!r.ok) return auShow('xOut', r); $('mmList').innerHTML = r.list.length ? r.list.map((x) => `<div class="row"><span><b>${esc(x.topic)}</b> — ${esc(String(x.solution).slice(0, 200))}</span><button data-mm="${esc(x.id)}">Удалить</button></div>`).join('') : '<p class="hint">Пусто.</p>'; };
+$('mmAdd').onclick = async () => { const r = await AU('mem-add', { topic: $('mmQ').value, solution: $('mmSol').value }); if (!r.ok) return auShow('xOut', r); $('mmSol').value = ''; mmRender(await AU('mem-list')); };
+$('mmFind').onclick = async () => mmRender(await AU('mem-search', { query: $('mmQ').value }));
+$('mmAll').onclick = async () => mmRender(await AU('mem-list'));
+$('mmList').onclick = async (e) => { const b = e.target.closest('button'); if (!b) return; await AU('mem-remove', { id: b.dataset.mm }); mmRender(await AU('mem-list')); };
+async function agRefresh() { const r = await AU('agent-list'); if (!r.ok) return auShow('xOut', r); $('agList').innerHTML = (r.list.length ? r.list.map((p) => `<div class="row"><span><b>${esc(p.name)}</b>${p.name === r.active ? ' ✓ активен' : ''} — ${esc(p.description.slice(0, 120))}</span><button data-ag="on" data-n="${esc(p.name)}">Сделать активным</button><button data-ag="del" data-n="${esc(p.name)}">Удалить</button></div>`).join('') : '<p class="hint">Помощников нет.</p>') + (r.active ? '<div class="row"><button data-ag="off">Выключить активного помощника</button></div>' : ''); }
+$('agBuild').onclick = async () => { const r = await AU('agent-build', { description: $('agDesc').value, name: $('agName').value || undefined }); auShow('xOut', r.ok ? r.agent.prompt : r); agRefresh(); };
+$('agRefresh').onclick = agRefresh;
+$('agList').onclick = async (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.ag === 'on') await AU('agent-activate', { name: b.dataset.n }); else if (b.dataset.ag === 'off') await AU('agent-activate', { name: '' }); else if (b.dataset.ag === 'del' && confirm('Удалить помощника?')) await AU('agent-remove', { name: b.dataset.n }); agRefresh(); };
+$('rsRun').onclick = async () => { $('xOut').textContent = 'Ищу и читаю источники…'; const r = await AU('research', { topic: $('rsTopic').value }); auShow('xOut', r.ok ? r.report + '\nФайл: ' + r.file : r); };
+$('dcRun').onclick = async () => { $('xOut').textContent = 'Проверяю программы…'; const r = await AU('discover', { task: $('dcTask').value }); if (!r.ok) return auShow('xOut', r);
+  $('xOut').textContent = 'Есть: ' + r.tools.filter((t) => t.ok).map((t) => t.cmd + (t.version ? ` (${t.version})` : '')).join(', ') + '\nНет: ' + r.tools.filter((t) => !t.ok).map((t) => t.cmd).join(', ') + '\n\nВозможности:\n' + r.capabilities.map((c) => '• ' + c).join('\n') + (r.suggest ? `\n\nДля задачи нужны: ${r.suggest.want.join(', ') || '—'}; не хватает: ${r.suggest.missing.join(', ') || '—'}\n` + r.suggest.install.map((x) => x.command).join('\n') : ''); };
+$('mtRun').onclick = async () => { const r = await AU('maintain', {}); auShow('xOut', r.ok ? r.report : r); };
+$('mtApply').onclick = async () => { const p = await AU('maintain', {}); if (!p.ok) return auShow('xOut', p); if (!p.report.cleaned.length) return auShow('xOut', 'Удалять нечего.'); if (!confirm('Удалить старые файлы (' + p.report.cleaned.length + ')?\n' + p.report.cleaned.slice(0, 15).join('\n'))) return; auShow('xOut', (await AU('maintain', { apply: true })).report); };
+$('pxExport').onclick = async () => auShow('xOut', await AU('export'));
+$('pxImport').onclick = async () => auShow('xOut', await AU('import', { settings: $('pxSettings').checked }));
+
 // 1.2.2: быстрый переключатель в главном окне
 (async () => { try { const { settings: s } = await iop.getSettings(); $('qAutoSwitch').checked = s.autoModelSwitch !== false; } catch {} })();
 $('qAutoSwitch').onchange = async () => { const { settings: s } = await iop.getSettings(); const v = $('qAutoSwitch').checked; await iop.saveSettings({ ...s, autoModelSwitch: v }); if ($('auAutoSwitch')) $('auAutoSwitch').checked = v; };

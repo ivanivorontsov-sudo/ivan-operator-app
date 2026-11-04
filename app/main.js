@@ -175,7 +175,7 @@ ipcMain.handle('auto', async (_e, op, a = {}) => {
         const chat = (msgs) => agent.chat(settings, msgs);
         const propose = async (skill, failures) => { const r = await chat([{ role: 'user', content: [{ type: 'text', text: `Навык (JSON) ломается. Исправь шаги. Верни ТОЛЬКО JSON {"steps":[...]}.\nНавык: ${JSON.stringify({ name: skill.name, params: skill.params, steps: skill.steps })}\nСбои: ${JSON.stringify(failures.slice(-3))}` }] }]); const j = require('./parse').extractJson(r.text); if (!j || !Array.isArray(j.steps)) throw new Error('Модель не дала шаги'); return { steps: j.steps, params: j.params }; };
         const verify = async (cand) => { // сухой прогон: каждый шаг — известное действие, параметры подставляются, нет критического риска
-          const known = /^(click|double_click|right_click|move|type|key|hotkey|scroll|drag|open_app|run|wait|os|checkpoint|run_tests|audit|template_search|template_fetch|github|adb|fastboot|android_devices|browser_\w+)$/;
+          const known = /^(click|double_click|right_click|move|type|key|hotkey|scroll|drag|open_app|run|wait|os|checkpoint|run_tests|audit|template_search|template_fetch|github|adb|fastboot|android_devices|browser_\w+|research|memory_add|memory_search|discover|analyze_screen|maintain)$/;
           for (const [i, st] of cand.steps.entries()) {
             if (!known.test(st.type)) return { ok: false, why: `шаг ${i + 1}: неизвестное действие ${st.type}` };
             if (st.type === 'os') try { au.osexec.build(st.intent, st.args || {}); } catch (e) { return { ok: false, why: `шаг ${i + 1}: ${e.message}` }; }
@@ -195,6 +195,20 @@ ipcMain.handle('auto', async (_e, op, a = {}) => {
       case 'stats': return { ok: true, table: A.stats.table() };
       case 'audit': { const dir = a.dir; if (!dir || !fs.existsSync(dir)) return { ok: false, error: 'Нет папки' }; const files = au.risk.auditFiles(dir); const deps = await au.risk.auditDeps(dir, au.runFile, au.has); return { ok: true, summary: au.risk.auditSummary(files, deps), files: files.slice(0, 100), deps }; }
       case 'risk': return { ok: true, ...au.risk.assessCommand(a.command || '') };
+      // 1.2.6
+      case 'mem-list': return { ok: true, list: A.memory.all().slice(-200).reverse() };
+      case 'mem-add': return { ok: true, item: A.memory.add({ topic: a.topic, solution: a.solution, verified: true, source: 'Иван' }) };
+      case 'mem-search': return { ok: true, list: A.memory.search(a.query || '', 10) };
+      case 'mem-remove': A.memory.remove(a.id); return { ok: true };
+      case 'agent-build': { const p = A.agents.build(a.description, { name: a.name }); A.agents.save(p); return { ok: true, agent: p }; }
+      case 'agent-list': return { ok: true, list: A.agents.list(), active: settings.activeAgent || '' };
+      case 'agent-activate': saveSettings({ ...settings, activeAgent: a.name || '' }); return { ok: true };
+      case 'agent-remove': A.agents.remove(a.name); if (settings.activeAgent === a.name) saveSettings({ ...settings, activeAgent: '' }); return { ok: true };
+      case 'discover': { const r = await au.extra.discover({ has: au.has, run: au.runFile }); return { ok: true, ...r, suggest: a.task ? au.extra.suggestTools(a.task, r.tools, process.platform, () => r.tools.some((t) => t.ok && t.cmd === 'curl')) : null }; }
+      case 'maintain': { if (a.apply && agent.running) return { ok: false, error: 'Сначала остановите задачу' }; return { ok: true, report: au.extra.maintain(dataDir(), { apply: !!a.apply }) }; }
+      case 'research': { if (!a.topic) return { ok: false, error: 'Нет темы' }; const r = await au.extra.research(a.topic, { chat: (m) => agent.chat(settings, m), dataDir: dataDir() }); return { ok: true, file: r.file, report: r.report }; }
+      case 'export': { const b = au.extra.exportBundle(dataDir(), settings); const r = await dialog.showSaveDialog(win, { defaultPath: `ivan-operator-перенос-${new Date().toISOString().slice(0, 10)}.json`, filters: [{ name: 'Перенос', extensions: ['json'] }] }); if (r.canceled || !r.filePath) return { ok: false, error: 'Отменено' }; fs.writeFileSync(r.filePath, JSON.stringify(b, null, 1)); return { ok: true, file: r.filePath, files: Object.keys(b.files).length }; }
+      case 'import': { const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Перенос', extensions: ['json'] }] }); if (r.canceled || !r.filePaths[0]) return { ok: false, error: 'Отменено' }; const b = JSON.parse(fs.readFileSync(r.filePaths[0], 'utf8')); const out = au.extra.importBundle(dataDir(), b, { overwrite: !!a.overwrite }); if (a.settings) saveSettings({ ...settings, ...out.settings, key: settings.key, fallbacks: settings.fallbacks }); return { ok: true, imported: out.imported, skipped: out.skipped }; }
       default: return { ok: false, error: 'Неизвестная операция' };
     }
   } catch (e) { return { ok: false, error: String(e.message || e) }; }

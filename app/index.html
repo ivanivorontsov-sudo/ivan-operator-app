@@ -135,5 +135,16 @@
   <h3>Аудит безопасности и статистика моделей</h3>
   <div class="row"><input id="adDir" placeholder="папка" size="40"><button id="adRun">Проверить папку</button><button id="stRefresh">Статистика моделей</button></div>
   <pre id="adOut"></pre>
+  <h3>Общая память агентов</h3>
+  <div class="row"><input id="mmQ" placeholder="поиск или тема" size="30"><input id="mmSol" placeholder="проверенное решение" size="40"><button id="mmAdd">Добавить</button><button id="mmFind">Найти</button><button id="mmAll">Все</button></div>
+  <div id="mmList"></div>
+  <h3>Конструктор агентов</h3>
+  <div class="row"><input id="agName" placeholder="имя (необязательно)" size="20"><input id="agDesc" placeholder="какой помощник нужен: например, тестировщик сайтов на React" size="50"><button id="agBuild">Создать</button><button id="agRefresh">Обновить</button></div>
+  <div id="agList"></div>
+  <h3>Исследователь, инструменты, обслуживание, перенос</h3>
+  <div class="row"><input id="rsTopic" placeholder="тема исследования" size="40"><button id="rsRun">Исследовать</button></div>
+  <div class="row"><input id="dcTask" placeholder="задача (для подбора программ)" size="40"><button id="dcRun">Что есть на компьютере</button><button id="mtRun">Проверить систему</button><button id="mtApply">Очистить старое</button></div>
+  <div class="row"><button id="pxExport">Экспорт навыков/памяти/настроек</button><button id="pxImport">Импорт</button><label><input type="checkbox" id="pxSettings"> импортировать и настройки (без ключей)</label></div>
+  <pre id="xOut"></pre>
 </div></section>
 <script src="renderer.js"></script></body></html>

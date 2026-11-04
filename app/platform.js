@@ -9,7 +9,10 @@ const { app, screen, desktopCapturer, nativeImage } = require('electron');
 const IS_WIN = process.platform === 'win32';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function has(cmd) {
+// 1.2.6: кэш — раньше каждый вызов запускал процесс (≈4 мс на клик/снимок)
+const HAS = new Map();
+function has(cmd) { if (!HAS.has(cmd)) HAS.set(cmd, hasRaw(cmd)); return HAS.get(cmd); }
+function hasRaw(cmd) {
   if (IS_WIN) { try { execFileSync('where', [cmd], { stdio: 'pipe', windowsHide: true, timeout: 5000 }); return true; } catch { return false; } }
   try { execFileSync('sh', ['-c', `command -v ${cmd}`], { stdio: 'pipe' }); return true; } catch { return false; }
 }
@@ -177,6 +180,12 @@ async function screenshot(monIndex = 0) {
   }
   // Wayland/запасные пути
   const tmp = path.join(os.tmpdir(), `iop-shot-${process.pid}.png`);
+  // 1.2.6: wlroots (Sway/Hyprland/KDE с grim): grim в разы быстрее портала (без python и D-Bus) — пробуем первым
+  if (sess.wayland && !/gnome/i.test(sess.desktop || '') && has('grim')) {
+    try { fs.unlinkSync(tmp); } catch {}
+    const r = await run('grim', ['-t', 'png', '-l', '1', tmp], { timeout: 8000 });
+    if (r.ok && fs.existsSync(tmp) && fs.statSync(tmp).size > 1000) { const img = nativeImage.createFromPath(tmp); const sz = img.getSize(); if (sz.width) return { img, mon: { ...mon, x: 0, y: 0, width: sz.width, height: sz.height } }; }
+  }
   if (sess.wayland && has('python3')) {
     const r = await run('python3', [helperPath('wayland_portal.py'), '60'], { timeout: 65000 });
     const f = (r.stdout || '').trim();
@@ -239,11 +248,11 @@ async function mouse(action, x, y, opts = {}) {
   }
   switch (action) {
     case 'move': return xdo(['mousemove', '--sync', String(x), String(y)]);
-    case 'click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.08', 'click', '1']);
-    case 'double_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.08', 'click', '--repeat', '2', '--delay', '90', '1']);
-    case 'triple_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.08', 'click', '--repeat', '3', '--delay', '90', '1']);
-    case 'right_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.08', 'click', '3']);
-    case 'middle_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.08', 'click', '2']);
+    case 'click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.03', 'click', '1']);
+    case 'double_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.03', 'click', '--repeat', '2', '--delay', '90', '1']);
+    case 'triple_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.03', 'click', '--repeat', '3', '--delay', '90', '1']);
+    case 'right_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.03', 'click', '3']);
+    case 'middle_click': return xdo(['mousemove', '--sync', String(x), String(y), 'sleep', '0.03', 'click', '2']);
     case 'drag': return xdo(['mousemove', '--sync', String(x), String(y), 'mousedown', '1', 'sleep', '0.15', 'mousemove', '--sync', String(Math.round((x + opts.x2) / 2)), String(Math.round((y + opts.y2) / 2)), 'sleep', '0.1', 'mousemove', '--sync', String(Math.round(opts.x2)), String(Math.round(opts.y2)), 'sleep', '0.15', 'mouseup', '1']);
     case 'scroll': {
       const n = Math.max(1, Math.min(30, Math.abs(opts.amount || 3)));
@@ -269,7 +278,7 @@ async function typeText(text, viaClipboard = false) {
   // построчно: xdotool type надёжно печатает кириллицу и символы
   const parts = text.split('\n');
   for (let i = 0; i < parts.length; i++) {
-    if (parts[i]) await run('xdotool', ['type', '--clearmodifiers', '--delay', '12', '--', parts[i]], { timeout: 120000 });
+    if (parts[i]) await run('xdotool', ['type', '--clearmodifiers', '--delay', '6', '--', parts[i]], { timeout: 120000 });
     if (i < parts.length - 1) await xdo(['key', 'Return']);
   }
   return { ok: true };

@@ -78,7 +78,20 @@ class Agent {
     let prev = null; const t0 = Date.now();
     while (Date.now() - t0 < maxMs) {
       try { const { img } = await platform.screenshot(s.monitor || 0); const sig = imaging.signature(img); if (prev && imaging.diffRatio(prev, sig) < 0.003) return; prev = sig; } catch { return; }
-      await platform.sleep(350);
+      await platform.sleep(s.stablePollMs || 150);
+    }
+  }
+  // 1.2.6: адаптивное ожидание вместо фиксированных пауз — выходим, как только 2 кадра подряд совпали (или истёк предел)
+  async settle(s, maxMs, a) {
+    const NON_GUI = /^(run|os|run_tests|audit|template_\w+|checkpoint|run_skill|run_recipe|ask_user|done|wait|zoom|screenshot|android_\w+|adb|fastboot|github|browser_read|research|swarm|parallel|memory_\w+|discover|maintain|analyze_screen|build_agent)$/;
+    if (a && NON_GUI.test(a.type)) return;
+    if (s.adaptiveSettle === false) return platform.sleep(maxMs);
+    if (this.mode(s) === 'dom') return platform.sleep(Math.min(maxMs, 250));
+    await platform.sleep(Math.min(120, maxMs));
+    let prev = null; const t0 = Date.now();
+    while (Date.now() - t0 < maxMs) {
+      try { const { img } = await platform.screenshot(s.monitor || 0); const sig = imaging.signature(img); if (prev && imaging.diffRatio(prev, sig) < 0.003) return; prev = sig; } catch { return platform.sleep(Math.max(0, maxMs - (Date.now() - t0))); }
+      await platform.sleep(100);
     }
   }
 
@@ -182,6 +195,7 @@ class Agent {
     const base = this.getSettings();
     // список провайдеров: основной + запасные (при сбое — переключение)
     const chain = require('./chain').buildChain(base, { provId: (x) => this.provId(x) });
+    this._chain = chain;
     if (!require('./chain').autoOn(base)) this.emit({ kind: 'info', text: 'Автовыбор модели выключен: работаю только с выбранным ИИ, без переключений.' });
     if (require('./chain').adaptiveOn(base) && this.auto) try { const ranked = this.auto.stats.rank(require('./auto/modelstats').classify(taskText), chain, (x) => this.provId(x)); if (ranked && ranked.length === chain.length) { if (this.provId(ranked[0]) !== this.provId(chain[0])) this.emit({ kind: 'info', text: `Адаптивный выбор: для задач этого типа лучше «${this.provId(ranked[0])}».` }); chain.splice(0, chain.length, ...ranked); } } catch {}
     if (this.auto) this.auto.startTask();
@@ -236,7 +250,7 @@ class Agent {
         cur += obs.dom ? `\nБЫСТРЫЙ РЕЖИМ (только код): снимков экрана нет. Шаг ${step}. Верни пачку {"actions":[...]}: заполни ВСЕ поля из списка за один ответ (browser_fill с полем fields или несколько browser_type/browser_select/browser_check), затем нажми кнопку отправки/«Далее».` : `\nСнимок экрана после шага (${obs.tsize.width}×${obs.tsize.height}). Шаг ${step}. Можно вернуть одно действие или пачку {"actions":[...]}.${s.provider === 'webchat' ? ' Модель медленная — заполняй сразу ВСЕ видимые поля одной пачкой.' : ''}`;
         const env = await context.environment(this.app, { mon: obs.mon || (await platform.monitors())[s.monitor || 0], img: obs.dom ? { width: 1, height: 1 } : obs.tsize, coords: s.coords, monitors: await platform.monitors(), vision: (providers.PRESETS[s.provider] || {}).vision !== false });
         const system = context.readPrompt(this.app) + '\n\n' + env + (md === 'hybrid' ? '\n\n## ГИБРИДНЫЙ РЕЖИМ (по умолчанию)\nСначала работай по снимку экрана: находи кнопки/поля глазами и кликай по координатам. Если элемент не находится или клик не срабатывает — переходи на код страницы (browser_read/browser_click/… по selector) или метки элементов; программа сама подскажет, когда переключиться.' : '') + (md === 'vision' ? '\n\n## РЕЖИМ «ТОЛЬКО ЗРЕНИЕ»\nДействия browser_* и номера элементов ОТКЛЮЧЕНЫ. Находи кнопки и поля только по снимку экрана и кликай по координатам (click/type/hotkey/scroll). Кнопки ниже края окна — прокручивай (scroll) и ищи заново. После каждой страницы формы проверяй красные сообщения об ошибках и исправляй поля.' : '');
-        const system2 = system + (this.dataDir ? recipes.hint(this.dataDir) : '') + (this.auto ? this.auto.skills.hint() : '');
+        const system2 = system + (this.dataDir ? recipes.hint(this.dataDir) : '') + (this.auto ? this.auto.skills.hint() + this.auto.extraHint(s, taskText) : '');
         let msgs = buildMessages(this.history, { system: system2, currentShot: obs.dom ? null : { data: obs.data, tokens: obs.tokens }, currentText: cur });
         if (estimateTokens(msgs) > (s.contextBudget || 16000) * 0.75 && await this.compact(s, system))
           msgs = buildMessages(this.history, { system: system2, currentShot: obs.dom ? null : { data: obs.data, tokens: obs.tokens }, currentText: cur });
@@ -328,13 +342,13 @@ class Agent {
           batchLog.push(`#${bi + 1} ${a.type}: ${res}`); logLines.push(`${a.type}: ${String(res).slice(0, 200)}`); if (logLines.length > 30) logLines.shift();
           if (rec) try { rec.step(step + (batch.length > 1 ? '.' + (bi + 1) : ''), { thought: bi ? '' : parsed.thought, action: a, result: res, shot: bi ? null : (obs.dom ? null : obs.data) }); } catch {}
           this.emit({ kind: 'result', text: res });
-          await platform.sleep(Math.min(s.settleMs || 900, 500));
+          await this.settle(s, Math.min(s.settleMs || 900, 500), a);
         }
         if (early === 'zoom' || early === 'nudge') continue;
         // Авто-отчёт пачки + новый скрин на следующем витке цикла
         resultText = `Отчёт пачки (${batchLog.length} действий):\n` + batchLog.join('\n') + '\nПродолжай или done.';
         this.emit({ kind: 'batch_report', text: resultText, count: batchLog.length });
-        await platform.sleep(s.settleMs || 900);
+        await this.settle(s, s.settleMs || 900, batch.length === 1 ? batch[0] : null);
       }
       const msg = `Остановился: достигнут предел шагов (${s.maxSteps || 40}). Можно написать «продолжай».`;
       this.history.add({ role: 'assistant', text: msg }); this.emit({ kind: 'done', text: msg, stats });
