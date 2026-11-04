@@ -8,7 +8,7 @@ const TYPES = new Set(['click', 'double_click', 'triple_click', 'right_click', '
   'browser_open', 'browser_click', 'browser_type', 'browser_key', 'browser_read', 'browser_back', 'browser_scroll', 'browser_close', 'browser_dismiss', 'browser_select', 'browser_check', 'browser_upload', 'browser_fill', 'android_devices', 'android_setup', 'adb', 'fastboot', 'github', 'run_recipe',
   // 1.3.0/1.2.6: автономия (раньше эти типы отбрасывались как invalid — исправлено)
   'run_skill', 'checkpoint', 'os', 'run_tests', 'audit', 'template_search', 'template_fetch',
-  'research', 'swarm', 'parallel', 'memory_add', 'memory_search', 'discover', 'install_tool', 'maintain', 'analyze_screen', 'build_agent']);
+  'research', 'swarm', 'parallel', 'memory_add', 'memory_search', 'discover', 'install_tool', 'maintain', 'analyze_screen', 'build_agent', 'screen_vote']);
 
 let jsonrepair = null; try { ({ jsonrepair } = require('jsonrepair')); } catch {}
 // jsonrepair (josdejong/jsonrepair, ISC): чинит комментарии //, висячие запятые, кавычки, обрезанный JSON — частое у веб-чатов

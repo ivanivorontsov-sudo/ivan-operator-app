@@ -165,14 +165,18 @@ function suggestTools(task, found, platform = process.platform, has = () => fals
 
 // ---------- Визуальный анализатор (по сигнатурам кадров и тексту окна) ----------
 const ERR_RE = /(error|ошибк|exception|не отвечает|not responding|failed|сбой|traceback|fatal|denied|отказано|crash)/i;
+const W96 = 96, H60 = 60;
 function analyzeFrames(sigs, { diffRatio, texts = [], windowTitle = '' } = {}) {
   const r = { frozen: false, blank: false, changed: 0, errors: [], verdict: 'ok' };
   const last = sigs[sigs.length - 1];
   if (last) { let sum = 0, mn = 255, mx = 0; for (const v of last) { sum += v; if (v < mn) mn = v; if (v > mx) mx = v; } const avg = sum / last.length; r.blank = mx - mn < 8; r.brightness = Math.round(avg); }
   if (sigs.length >= 2) { const d = []; for (let i = 1; i < sigs.length; i++) d.push(diffRatio(sigs[i - 1], sigs[i])); r.changed = +(d[d.length - 1]).toFixed(4); r.frozen = sigs.length >= 3 && d.every((x) => x < 0.001); }
   for (const t of [windowTitle, ...texts]) if (t && ERR_RE.test(t)) r.errors.push(String(t).slice(0, 160));
-  r.verdict = r.errors.length ? 'error' : r.blank ? 'blank' : r.frozen ? 'frozen' : r.changed > 0.4 ? 'ui_changed' : 'ok';
-  r.ru = { ok: 'экран в порядке', error: 'на экране ошибка: ' + r.errors.slice(0, 2).join(' | '), blank: 'экран пустой/одноцветный (окно не прорисовалось?)', frozen: 'экран не меняется — возможно зависание', ui_changed: 'интерфейс сильно изменился — пересмотри элементы' }[r.verdict];
+  // 1.2.7: «занят» — меняется только маленький участок (индикатор загрузки); «модальное окно» — затемнённые края и светлый центр
+  if (sigs.length >= 3) { const d = []; for (let i = 1; i < sigs.length; i++) d.push(diffRatio(sigs[i - 1], sigs[i])); r.busy = d.every((x) => x > 0.0005 && x < 0.02); }
+  if (last && last.length === W96 * H60) { let e = 0, ne = 0, c = 0, nc = 0; for (let y = 0; y < H60; y++) for (let x = 0; x < W96; x++) { const v = last[y * W96 + x]; const edge = x < 8 || x >= W96 - 8 || y < 5 || y >= H60 - 5; const cen = x > 30 && x < 66 && y > 18 && y < 42; if (edge) { e += v; ne++; } else if (cen) { c += v; nc++; } } r.edge = Math.round(e / ne); r.center = Math.round(c / nc); r.modal = r.edge < 90 && r.center - r.edge > 60; }
+  r.verdict = r.errors.length ? 'error' : r.blank ? 'blank' : r.modal ? 'modal' : r.frozen ? 'frozen' : r.busy ? 'busy' : r.changed > 0.4 ? 'ui_changed' : 'ok';
+  r.ru = { ok: 'экран в порядке', error: 'на экране ошибка: ' + r.errors.slice(0, 2).join(' | '), blank: 'экран пустой/одноцветный (окно не прорисовалось?)', frozen: 'экран не меняется — возможно зависание', ui_changed: 'интерфейс сильно изменился — пересмотри элементы', modal: 'поверх открыто модальное окно/диалог — сначала закрой или ответь на него', busy: 'идёт загрузка (меняется только небольшой участок) — подожди' }[r.verdict];
   return r;
 }
 
@@ -220,4 +224,23 @@ function importBundle(dataDir, b, { overwrite = false } = {}) {
   return { imported: done, skipped, settings: s };
 }
 
-module.exports = { SharedMemory, research, parseDdg, extractArticle, httpGet, swarm, parallel, AgentBuilder, discover, suggestTools, installCmd, TOOLS, analyzeFrames, maintain, exportBundle, importBundle, scrub };
+// 1.2.7: необязательный анализ ИИ по снимку (поверх эвристик)
+async function analyzeWithAI(chat, jpegB64, heur, goal = '') {
+  const prompt = `Ты визуальный анализатор экрана. Эвристики по пикселям: ${heur.ru}. ${goal ? 'Цель пользователя: ' + goal + '. ' : ''}Посмотри на снимок и ответь ТОЛЬКО JSON: {"verdict":"ok|error|modal|loading|frozen|login|captcha|other","problems":["…"],"next":"что сделать дальше одной фразой"}`;
+  const r = await chat([{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image', data: jpegB64, tokens: 800 }] }]);
+  const j = jsonOf(r && r.text) || {}; return { verdict: String(j.verdict || 'other'), problems: Array.isArray(j.problems) ? j.problems.map(String).slice(0, 5) : [], next: String(j.next || '').slice(0, 300), raw: (r && r.text || '').slice(0, 500) };
+}
+
+// 1.2.7: голосование за следующее действие на экране (несколько ответов → кластеры → лучший)
+const GUI_TYPES = new Set(['click', 'double_click', 'triple_click', 'right_click', 'middle_click', 'move', 'drag', 'scroll', 'type', 'key', 'wait', 'browser_click', 'browser_type', 'browser_key', 'browser_scroll', 'browser_back', 'browser_select', 'browser_check', 'browser_fill', 'browser_dismiss']);
+function voteActions(cands, { width = 1000, height = 1000, tol = 0.03 } = {}) {
+  const ok = cands.filter((a) => a && GUI_TYPES.has(a.type));
+  const tx = (a) => String(a.text ?? a.keys ?? a.direction ?? a.selector ?? '').trim().toLowerCase();
+  const near = (a, b) => (a.x == null && b.x == null) || (a.x != null && b.x != null && Math.abs(a.x - b.x) <= tol * width && Math.abs(a.y - b.y) <= tol * height);
+  const same = (a, b) => a.type === b.type && tx(a) === tx(b) && (a.element ?? null) === (b.element ?? null) && near(a, b);
+  const cl = []; for (const a of ok) { const c = cl.find((c) => same(c.items[0], a)); if (c) c.items.push(a); else cl.push({ items: [a] }); }
+  for (const c of cl) { const a = { ...c.items[0] }; const xs = c.items.filter((i) => i.x != null); if (xs.length) { a.x = Math.round(xs.reduce((s, i) => s + i.x, 0) / xs.length); a.y = Math.round(xs.reduce((s, i) => s + i.y, 0) / xs.length); } c.action = a; c.votes = c.items.length; delete c.items; }
+  cl.sort((a, b) => b.votes - a.votes); return { ranked: cl, valid: ok.length, total: cands.length };
+}
+
+module.exports = { analyzeWithAI, voteActions, GUI_TYPES, SharedMemory, research, parseDdg, extractArticle, httpGet, swarm, parallel, AgentBuilder, discover, suggestTools, installCmd, TOOLS, analyzeFrames, maintain, exportBundle, importBundle, scrub };

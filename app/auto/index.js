@@ -68,6 +68,25 @@ class Autonomy {
       out.push({ id, chat: (m) => { const prev = this._locks[id] || Promise.resolve(); const p = prev.catch(() => {}).then(() => agent.chat(c, m)); this._locks[id] = p; return p; } }); }
     return out.slice(0, Math.max(1, s.swarmSize || 3));
   }
+  // 1.2.7: параллельное решение для управления экраном — несколько ответов (разные ИИ при «Автовыборе», иначе тот же ИИ несколько раз),
+  // голосование по кластерам действий, выполнение лучшего с проверкой (экран изменился?), при неудаче — следующий вариант.
+  async screenVote(agent, a, s, obs, parsed, stats, setClick) {
+    if (!obs || !obs.data) return 'ОШИБКА: screen_vote нужен снимок экрана (режим зрения/гибрид).';
+    const goal = String(a.goal || a.task || (parsed && parsed.thought) || '').slice(0, 600); const n = Math.max(2, Math.min(5, a.n || s.swarmSize || 3));
+    const chats = this.chats(agent, s); const jobs = []; for (let i = 0; i < n; i++) jobs.push(chats[i % chats.length]);
+    const prompt = `Цель: ${goal}\nСнимок ${obs.tsize.width}x${obs.tsize.height}. Предложи ОДНО следующее действие с экраном. Ответ ТОЛЬКО JSON: {"type":"click|double_click|right_click|type|key|scroll|drag|wait","x":…,"y":…,"text":"…","keys":"…","direction":"…"} в координатах снимка.` + (obs.text ? '\n' + String(obs.text).slice(0, 3000) : '');
+    const P = require('../parse'); const res = await Promise.allSettled(jobs.map((c) => c.chat([{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image', data: obs.data, tokens: obs.tokens || 1000 }] }])));
+    const cands = res.map((r) => { if (r.status !== 'fulfilled') return null; try { const j = P.extractJson(r.value.text); return j ? P.normalizeAction(j.action || j) : null; } catch { return null; } });
+    const v = extra.voteActions(cands, obs.tsize); if (!v.ranked.length) return `Голосование: нет корректных вариантов (${v.valid}/${v.total}).`;
+    const I = require('../imaging'); const Pl = require('../platform'); const log = [];
+    for (const c of v.ranked.slice(0, 2)) {
+      const before = obs.sig; const r = await agent.execute(c.action, s, obs, parsed, stats, setClick); await Pl.sleep(400);
+      let changed = 1; try { changed = I.diffRatio(before, I.signature((await Pl.screenshot(s.monitor || 0)).img)); } catch {}
+      log.push(`${c.action.type}${c.action.x != null ? ` (${c.action.x},${c.action.y})` : ''} — голосов ${c.votes}/${v.total}: ${String(r).slice(0, 200)}; экран ${changed > 0.002 || /^(wait|key|type)$/.test(c.action.type) ? 'изменился ✓' : 'не изменился'}`);
+      if (changed > 0.002 || /^(wait|key|type)$/.test(c.action.type) || /ОТКАЗ|не разрешил/.test(String(r))) break;
+    }
+    return 'Голосование за действие (' + chats.length + ' ИИ, ' + n + ' вариантов):\n' + log.join('\n');
+  }
   async execute(agent, a, s, obs, parsed, stats, setClick) {
     const T = a.type;
     if (T === 'research') { const r = await extra.research(String(a.topic || a.query || ''), { chat: (m) => agent.chat(s, m), dataDir: this.dataDir, pages: Math.min(6, a.pages || 3), signal: agent.ctl && agent.ctl.signal }); return `Отчёт сохранён: ${r.file}\n${r.report.slice(0, 6000)}`; }
@@ -86,7 +105,12 @@ class Autonomy {
       const ok = agent.confirm && await agent.confirm(cmd, ['Установка программы ' + a.tool + ' (менеджер пакетов системы)']); if (!ok) return 'Иван не разрешил установку.';
       const r = await (require('../platform')).shellRun(cmd, 900000, { signal: agent.ctl && agent.ctl.signal }); return `Код ${r.code}: ${(r.output || '').slice(-1500)}`; }
     if (T === 'maintain') { const r = extra.maintain(this.dataDir, { apply: false }); if (a.apply && r.cleaned.length) { const ok = agent.confirm && await agent.confirm(`Удалить старые файлы (${r.cleaned.length})`, r.cleaned.slice(0, 10)); if (ok) Object.assign(r, extra.maintain(this.dataDir, { apply: true })); } return 'Обслуживание: ' + JSON.stringify(r).slice(0, 3000); }
-    if (T === 'analyze_screen') { const P = require('../platform'); const I = require('../imaging'); const sigs = []; for (let i = 0; i < 3; i++) { try { sigs.push(I.signature((await P.screenshot(s.monitor || 0)).img)); } catch {} await P.sleep(400); } const r = extra.analyzeFrames(sigs, { diffRatio: I.diffRatio, windowTitle: await P.activeWindow().catch(() => '') }); return 'Анализ экрана: ' + r.ru + ` (изменение ${r.changed}, яркость ${r.brightness})`; }
+    if (T === 'analyze_screen') { const P = require('../platform'); const I = require('../imaging'); const sigs = []; let last = null; for (let i = 0; i < 3; i++) { try { last = (await P.screenshot(s.monitor || 0)).img; sigs.push(I.signature(last)); } catch {} if (i < 2) await P.sleep(400); }
+      const r = extra.analyzeFrames(sigs, { diffRatio: I.diffRatio, windowTitle: await P.activeWindow().catch(() => '') }); let out = 'Анализ экрана: ' + r.ru + ` (изменение ${r.changed}, яркость ${r.brightness})`;
+      // ИИ-анализ по снимку — по запросу (ai:true) или настройке visualAI; не отправляем картинки, если они выключены
+      if ((a.ai || s.visualAI) && last && s.webchatImages !== false) { try { const ai = await extra.analyzeWithAI((m) => agent.chat(s, m), last.resize({ width: 1024 }).toJPEG(70).toString('base64'), r, a.goal || ''); out += `\nИИ: ${ai.verdict}${ai.problems.length ? ' — ' + ai.problems.join('; ') : ''}${ai.next ? '\nДальше: ' + ai.next : ''}`; } catch (e) { out += '\n(ИИ-анализ не удался: ' + e.message + ')'; } }
+      return out; }
+    if (T === 'screen_vote') return await this.screenVote(agent, a, s, obs, parsed, stats, setClick);
     if (T === 'build_agent') { const p = this.agents.build(a.description, { name: a.name }); this.agents.save(p); return `Создан помощник «${p.name}». Включить: настройка «Активный помощник» во вкладке «Автономия».`; }
     if (T === 'checkpoint') { const r = this.tm.checkpoint({ label: a.label || 'Точка от агента', paths: existingDirs(a.paths && a.paths.length ? a.paths : s.projectDirs), settings: cleanSettings(s) }); this.tm.prune(); return `Контрольная точка ${r.id}: файлов ${r.files}${r.skipped ? ', пропущено ' + r.skipped : ''}.`; }
     if (T === 'os') {

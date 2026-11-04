@@ -39,9 +39,17 @@ const FIND_JS = (cached) => `(()=>{const vis=e=>e&&e.getClientRects().length&&ge
  const tag=e=>{e.setAttribute('data-iop-editor','1');return e};document.querySelectorAll('[data-iop-editor]').forEach(e=>e.removeAttribute('data-iop-editor'));
  const tryS=s=>{try{const a=[...document.querySelectorAll(s)].filter(vis);return a[a.length-1]}catch(e){return null}};
  const C=${JSON.stringify(cached || '')};if(C){const e=tryS(C);if(e)return {how:'cache',sel:C,ok:!!tag(e)}}
+ // 1.2.7: самовосстановление — «смысловой» поиск по placeholder/aria/role (текст на любом языке), затем «зрение»; найденное превращаем в устойчивый селектор и запоминаем
+ const css=v=>String(v).replace(/["\\\\]/g,'\\\\$&');
+ const stable=e=>{const t=e.tagName.toLowerCase();const c=[];if(e.id&&!/\\d{4,}|:/.test(e.id))c.push('#'+CSS.escape(e.id));for(const k of ['data-testid','aria-label','placeholder','name','data-placeholder'])if(e.getAttribute(k))c.push(t+'['+k+'="'+css(e.getAttribute(k))+'"]');if(e.getAttribute('role'))c.push(t+'[role="'+e.getAttribute('role')+'"]'+(e.isContentEditable?'[contenteditable=true]':''));
+  for(const q of c){try{const m=[...document.querySelectorAll(q)].filter(vis);if(m.length&&m[m.length-1]===e)return q}catch(x){}}return '[data-iop-editor]'};
+ const RX=/message|ask|prompt|chat|type|write|query|question|сообщ|спрос|вопрос|напиш|введ|запрос|чат|задай/i;
+ const cand=[...document.querySelectorAll('textarea,input:not([type]),input[type=text],input[type=search],[contenteditable=""],[contenteditable=true],[role=textbox],[role=combobox]')].filter(e=>vis(e)&&!e.disabled&&!e.readOnly);
+ if(cand.length){const H0=innerHeight;const sc=e=>{const r=e.getBoundingClientRect();const lab=[e.getAttribute('placeholder'),e.getAttribute('aria-label'),e.getAttribute('data-placeholder'),e.getAttribute('name'),e.id,(e.querySelector&&e.querySelector('[data-placeholder]')||{}).dataset?.placeholder].join(' ');return (RX.test(lab)?5:0)+(e.tagName==='TEXTAREA'||e.isContentEditable?3:0)+(r.top>H0*0.4?2:0)+(r.width>300?1:0)-(e.type==='search'?2:0)};
+  const best=cand.map(e=>[sc(e),e]).sort((x,y)=>y[0]-x[0])[0];if(best[0]>=6){const e=best[1];return {how:'semantic',sel:stable(e),ok:!!tag(e)}}}
  const L=['textarea[placeholder]','div[contenteditable=true][role=textbox]','[contenteditable=true][aria-label]','#ask-input','textarea','[contenteditable=true]','div[role=textbox]','input[type=text][placeholder]'];
  for(const s of L){const e=tryS(s);if(e)return {how:'selector',sel:s,ok:!!tag(e)}}
- const W=innerWidth,H=innerHeight;for(let y=H-40;y>H*0.45;y-=30)for(const x of [W/2,W*0.4,W*0.6,W*0.3]){let e=document.elementFromPoint(x,y);for(let i=0;i<4&&e;i++,e=e.parentElement){if(e.isContentEditable||/^(TEXTAREA|INPUT)$/.test(e.tagName))return {how:'vision',sel:'[data-iop-editor]',ok:!!tag(e)}}}
+ const W=innerWidth,H=innerHeight;for(let y=H-12;y>H*0.45;y-=22)for(const x of [W/2,W*0.4,W*0.6,W*0.3]){let e=document.elementFromPoint(x,y);for(let i=0;i<4&&e;i++,e=e.parentElement){if(e.isContentEditable||/^(TEXTAREA|INPUT)$/.test(e.tagName))return {how:'vision',sel:stable(e),ok:!!tag(e)}}}
  return {how:'none',ok:false}})()`;
 const CHATS_JS = `(()=>{const P=/\\/(a\\/chat\\/s|c|chat|search|thread|conversation|app|s)\\/[\\w-]{6,}/;const seen=new Set();const out=[];
  for(const a of document.querySelectorAll('a[href]')){const h=a.href;if(!h.startsWith(location.origin)||!P.test(new URL(h).pathname)||seen.has(h))continue;const t=(a.innerText||a.title||a.getAttribute('aria-label')||'').trim().replace(/\\s+/g,' ');if(!t)continue;seen.add(h);out.push({title:t.slice(0,80),url:h});if(out.length>=60)break}return out})()`;
@@ -182,7 +190,7 @@ async function chat(cfg, messages, signal) {
   // Нативный ввод (как с клавиатуры) — работает на React/Quill/ProseMirror; запасной — JS-заполнение.
   let how = 'noinput';
   const found = await w.webContents.executeJavaScript(FIND_JS(getCache()[id])).catch(() => ({ ok: false }));
-  if (found.ok && found.how !== 'cache') putCache(id, found.sel);
+  if (found.ok && found.how !== 'cache' && found.sel !== '[data-iop-editor]') { if (getCache()[id] && getCache()[id] !== found.sel) say('info', `${site.label}: интерфейс изменился — поле ввода найдено заново (${found.how}), запомнил.`); putCache(id, found.sel); }
   if (found.ok) await w.webContents.executeJavaScript(`(()=>{const e=document.querySelector('[data-iop-editor]');if(e){e.focus();try{document.execCommand('selectAll',false)}catch(x){}}return 1})()`).catch(() => {});
   if (found.ok || await w.webContents.executeJavaScript('window.__pp.focus()')) {
     w.webContents.insertText(text); await sleep(800);
